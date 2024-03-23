@@ -4,6 +4,9 @@
 (( ! ${+ZSH_COPILOT_SEND_CONTEXT} )) &&
     typeset -g ZSH_COPILOT_SEND_CONTEXT=true
 
+(( ! ${+ZSH_COPILOT_SEND_GIT_DIFF} )) &&
+    typeset -g ZSH_COPILOT_SEND_GIT_DIFF=true
+
 SYSTEM_PROMPT="You will be given the raw input of a shell command. Your task is to either complete the command or provide a new command that you think the user is trying to type. If you return a completely new command for the user, prefix is with an equal sign (=). If you return a completion for the user's command, prefix it with a plus sign (+). Only respond with either a completion or a new command, not both. Do not explain the command. Do not ask for more information, you won't receive it. Your response will be run in the user's shell. Make sure input is escaped correctly if needed so. Your input should be able to run without any modifications to it. Don't you dare to return anything else other than a shell command!!! DO NOT INTERACT WITH THE USER IN NATURAL LANGUAGE! If you do, you will be banned from the system. Here are two examples: * User input: 'list files in current directory'; Your response: '=ls' * User input: 'cd /tm'; Your response: '+p'."
 
 if [[ "$ZSH_COPILOT_SEND_CONTEXT" == 'true' ]]; then
@@ -17,6 +20,15 @@ function _suggest_ai() {
     _zsh_autosuggest_clear
     zle -R "Thinking..."
 
+    local PROMPT="$SYSTEM_PROMPT"
+    if [[ "$ZSH_COPILOT_SEND_GIT_DIFF" == 'true' ]]; then
+        local git_diff=$(git diff --no-color | xargs | sed 's/ /\$/g' | xargs | sed 's/ /$/g')
+
+        if [[ $? -eq 0 ]]; then
+            PROMPT="$PROMPT; This is the git diff (newlines separated by dollar signs): $git_diff;; You may provide a git commit message if the user is trying to commit changes. Do not say something like 'Your commit message' or 'Your commit message here'. Just provide the commit message."
+        fi
+    fi
+
     local response=$(curl 'https://api.openai.com/v1/chat/completions' \
         --silent \
         -H "Content-Type: application/json" \
@@ -26,7 +38,7 @@ function _suggest_ai() {
             \"messages\": [
                 {
                     \"role\": \"system\",
-                    \"content\": \"${SYSTEM_PROMPT}\"
+                    \"content\": \"$PROMPT\"
                 },
                 {
                     \"role\": \"user\",
