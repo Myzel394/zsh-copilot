@@ -11,6 +11,8 @@ https://github.com/Myzel394/zsh-copilot/assets/50424412/ed2bc8ac-ce49-4012-ab73-
 Please make sure you have the following dependencies installed:
 
 * [zsh-autosuggestions](https://github.com/zsh-users/zsh-autosuggestions)
+* [jq](https://github.com/jqlang/jq)
+* [curl](https://github.com/curl/curl)
 
 ```sh
 git clone https://github.com/Myzel394/zsh-copilot.git ~/.zsh-copilot
