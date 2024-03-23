@@ -2,6 +2,8 @@
 
 Get suggestions **truly** in your shell. No `suggest` bullshit. Just press `CTRL + Z` and get your suggestion.
 
+https://github.com/Myzel394/zsh-copilot/assets/50424412/ec8203b6-fe76-4071-bf8e-86c5fc790c39
+
 ## Installation
 
 ### Dependencies
