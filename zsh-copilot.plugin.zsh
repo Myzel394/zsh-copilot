@@ -22,10 +22,12 @@ function _suggest_ai() {
 
     local PROMPT="$SYSTEM_PROMPT"
     if [[ "$ZSH_COPILOT_SEND_GIT_DIFF" == 'true' ]]; then
-        local git_diff=$(git diff --no-color | xargs | sed 's/ /\$/g' | xargs | sed 's/ /$/g')
+        if [[ "git rev-parse --is-inside-work-tree" == 'true' ]]; then
+            local git_diff=$(git diff --no-color | xargs | sed 's/ /\$/g' | xargs | sed 's/ /$/g')
 
-        if [[ $? -eq 0 ]]; then
-            PROMPT="$PROMPT; This is the git diff (newlines separated by dollar signs): $git_diff;; You may provide a git commit message if the user is trying to commit changes. Do not say something like 'Your commit message' or 'Your commit message here'. Just provide the commit message."
+            if [[ $? -eq 0 ]]; then
+                PROMPT="$PROMPT; This is the git diff (newlines separated by dollar signs): $git_diff;; You may provide a git commit message if the user is trying to commit changes. Do not say something like 'Your commit message' or 'Your commit message here'. Just provide the commit message."
+            fi
         fi
     fi
 
