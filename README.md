@@ -29,6 +29,11 @@ export OPENAI_API_KEY=<your-api-key>
 
 I tried out using `gpt-3` but the results were garbage.
 
+To see available configurations, run:
+
+```sh
+zsh-copilot --help
+
 ## Usage
 
 Type in your command or your message and press `CTRL + Z` to get your suggestion!

@@ -64,6 +64,15 @@ function _suggest_ai() {
     fi
 }
 
+function zsh-copilot() {
+    echo "ZSH Copilot is now active. Press $ZSH_COPILOT_KEY to get suggestions."
+    echo ""
+    echo "Configurations:"
+    echo "    - ZSH_COPILOT_KEY: Key to press to get suggestions (default: ^z, value: $ZSH_COPILOT_KEY)."
+    echo "    - ZSH_COPILOT_SEND_CONTEXT: If \`true\`, zsh-copilot will send context information (whoami, shell, pwd, etc.) to the AI model (default: true, value: $ZSH_COPILOT_SEND_CONTEXT)."
+    echo "    - ZSH_COPILOT_SEND_GIT_DIFF: If \`true\`, zsh-copilot will send the git diff (if available) to the AI model (default: true, value: $ZSH_COPILOT_SEND_GIT_DIFF)."
+}
+
 zle -N _suggest_ai
 bindkey $ZSH_COPILOT_KEY _suggest_ai
 
