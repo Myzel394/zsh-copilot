@@ -33,6 +33,7 @@ To see available configurations, run:
 
 ```sh
 zsh-copilot --help
+```
 
 ## Usage
 
