@@ -4,8 +4,8 @@
 (( ! ${+ZSH_COPILOT_SEND_CONTEXT} )) &&
     typeset -g ZSH_COPILOT_SEND_CONTEXT=true
 
-(( ! ${+ZSH_COPILOT_SEND_GIT_DIFF} )) &&
-    typeset -g ZSH_COPILOT_SEND_GIT_DIFF=true
+# (( ! ${+ZSH_COPILOT_SEND_GIT_DIFF} )) &&
+#     typeset -g ZSH_COPILOT_SEND_GIT_DIFF=true
 
 (( ! ${+ZSH_COPILOT_DEBUG} )) &&
     typeset -g ZSH_COPILOT_DEBUG=false
@@ -25,17 +25,18 @@ function _suggest_ai() {
     zle -R "Thinking..."
 
     local PROMPT="$SYSTEM_PROMPT"
-    if [[ "$ZSH_COPILOT_SEND_GIT_DIFF" == 'true' ]]; then
-        if [[ $(git rev-parse --is-inside-work-tree) == 'true' ]]; then
-            local git_diff=$(git diff --staged --no-color)
-            local git_exit_code=$?
-            git_diff=$(echo "$git_diff" | tr -d '\n')
-
-            if [[ git_exit_code -eq 0 ]]; then
-                PROMPT="$PROMPT; This is the git diff: <---->$git_diff<----> You may provide a git commit message if the user is trying to commit changes. You are an expert at committing changes, you don't give generic messages. You give the best commit messages"
-            fi
-        fi
-    fi
+    # Wasn't able to get this to work :(
+    # if [[ "$ZSH_COPILOT_SEND_GIT_DIFF" == 'true' ]]; then
+    #     if [[ $(git rev-parse --is-inside-work-tree) == 'true' ]]; then
+    #         local git_diff=$(git diff --staged --no-color)
+    #         local git_exit_code=$?
+    #         git_diff=$(echo "$git_diff" | tr '\\' ' ' | sed 's/[\$\"\`]/\\&/g' | tr '\\' '\\\\' | tr -d '\n')
+    #
+    #         if [[ git_exit_code -eq 0 ]]; then
+    #             PROMPT="$PROMPT; This is the git diff: <---->$git_diff<----> You may provide a git commit message if the user is trying to commit changes. You are an expert at committing changes, you don't give generic messages. You give the best commit messages"
+    #         fi
+    #     fi
+    # fi
 
     local data="{
             \"model\": \"gpt-4\",
@@ -46,9 +47,7 @@ function _suggest_ai() {
                 },
                 {
                     \"role\": \"user\",
-                    \"content\": \""
-    data+=$input
-    data+="\"
+                    \"content\": \"$input\"
                 }
             ]
         }"
@@ -87,7 +86,7 @@ function zsh-copilot() {
     echo "Configurations:"
     echo "    - ZSH_COPILOT_KEY: Key to press to get suggestions (default: ^z, value: $ZSH_COPILOT_KEY)."
     echo "    - ZSH_COPILOT_SEND_CONTEXT: If \`true\`, zsh-copilot will send context information (whoami, shell, pwd, etc.) to the AI model (default: true, value: $ZSH_COPILOT_SEND_CONTEXT)."
-    echo "    - ZSH_COPILOT_SEND_GIT_DIFF: If \`true\`, zsh-copilot will send the git diff (if available) to the AI model (default: true, value: $ZSH_COPILOT_SEND_GIT_DIFF)."
+    # echo "    - ZSH_COPILOT_SEND_GIT_DIFF: If \`true\`, zsh-copilot will send the git diff (if available) to the AI model (default: true, value: $ZSH_COPILOT_SEND_GIT_DIFF)."
 }
 
 zle -N _suggest_ai
