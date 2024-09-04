@@ -13,7 +13,11 @@
 SYSTEM_PROMPT="You will be given the raw input of a shell command. Your task is to either complete the command or provide a new command that you think the user is trying to type. If you return a completely new command for the user, prefix is with an equal sign (=). If you return a completion for the user's command, prefix it with a plus sign (+). MAKE SURE TO ONLY INCLUDE THE REST OF THE COMPLETION!!! Do not write any leading or trailing characters except if required for the completion to work. Only respond with either a completion or a new command, not both. Your response may only start with either a plus sign or an equal sign. Your response MAY NOT start with both! This means that your response IS NOT ALLOWED to start with '+=' or '=+'. Do not explain the command. Do not ask for more information, you won't receive it. Your response will be run in the user's shell. Make sure input is escaped correctly if needed so. Your input should be able to run without any modifications to it. Don't you dare to return anything else other than a shell command!!! DO NOT INTERACT WITH THE USER IN NATURAL LANGUAGE! If you do, you will be banned from the system. Note that the double quote sign is escaped. Keep this in mind when you create quotes. Here are two examples: * User input: 'list files in current directory'; Your response: '=ls' * User input: 'cd /tm'; Your response: '+p'."
 
 if [[ "$ZSH_COPILOT_SEND_CONTEXT" == 'true' ]]; then
-    SYSTEM_PROMPT="$SYSTEM_PROMPT Context: You are user ${$(whoami)} with id ${$(id)} in directory ${$(pwd)}. Your shell is ${$(echo $SHELL)} and your terminal is ${$(echo $TERM)} running on ${$(uname -a)}. Your system is ${$(cat /etc/*-release | xargs | sed 's/ /,/g')}."
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        SYSTEM_PROMPT="$SYSTEM_PROMPT Context: You are user ${$(whoami)} with id ${$(id)} in directory ${$(pwd)}. Your shell is ${$(echo $SHELL)} and your terminal is ${$(echo $TERM)} running on ${$(uname -a)}. Your system is ${$(sw_vers | xargs | sed 's/ /./g')}."
+    else
+        SYSTEM_PROMPT="$SYSTEM_PROMPT Context: You are user ${$(whoami)} with id ${$(id)} in directory ${$(pwd)}. Your shell is ${$(echo $SHELL)} and your terminal is ${$(echo $TERM)} running on ${$(uname -a)}. Your system is ${$(cat /etc/*-release | xargs | sed 's/ /,/g')}."
+    fi
 fi
 
 function _suggest_ai() {
