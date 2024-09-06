@@ -10,21 +10,52 @@
 (( ! ${+ZSH_COPILOT_DEBUG} )) &&
     typeset -g ZSH_COPILOT_DEBUG=false
 
-SYSTEM_PROMPT="You will be given the raw input of a shell command. Your task is to either complete the command or provide a new command that you think the user is trying to type. If you return a completely new command for the user, prefix is with an equal sign (=). If you return a completion for the user's command, prefix it with a plus sign (+). MAKE SURE TO ONLY INCLUDE THE REST OF THE COMPLETION!!! Do not write any leading or trailing characters except if required for the completion to work. Only respond with either a completion or a new command, not both. Your response may only start with either a plus sign or an equal sign. Your response MAY NOT start with both! This means that your response IS NOT ALLOWED to start with '+=' or '=+'. Do not explain the command. Do not ask for more information, you won't receive it. Your response will be run in the user's shell. Make sure input is escaped correctly if needed so. Your input should be able to run without any modifications to it. Don't you dare to return anything else other than a shell command!!! DO NOT INTERACT WITH THE USER IN NATURAL LANGUAGE! If you do, you will be banned from the system. Note that the double quote sign is escaped. Keep this in mind when you create quotes. Here are two examples: * User input: 'list files in current directory'; Your response: '=ls' * User input: 'cd /tm'; Your response: '+p'."
+read -r -d '' SYSTEM_PROMPT <<- EOM
+  You will be given the raw input of a shell command. 
+  Your task is to either complete the command or provide a new command that you think the user is trying to type. 
+  If you return a completely new command for the user, prefix is with an equal sign (=). 
+  If you return a completion for the user's command, prefix it with a plus sign (+). 
+  MAKE SURE TO ONLY INCLUDE THE REST OF THE COMPLETION!!! 
+  Do not write any leading or trailing characters except if required for the completion to work. 
+  Only respond with either a completion or a new command, not both. 
+  Your response may only start with either a plus sign or an equal sign.
+  Your response MAY NOT start with both! This means that your response IS NOT ALLOWED to start with '+=' or '=+'.
+  You MAY explain the command by writing a short line after the comment symbol (#).
+  Do not ask for more information, you won't receive it. 
+  Your response will be run in the user's shell. 
+  Make sure input is escaped correctly if needed so. 
+  Your input should be able to run without any modifications to it.
+  Don't you dare to return anything else other than a shell command!!! 
+  DO NOT INTERACT WITH THE USER IN NATURAL LANGUAGE! If you do, you will be banned from the system. 
+  Note that the double quote sign is escaped. Keep this in mind when you create quotes. 
+  Here are two examples: 
+    * User input: 'list files in current directory'; Your response: '=ls # ls is the builtin command for listing files' 
+    * User input: 'cd /tm'; Your response: '+p # /tmp is the standard temp folder on linux and mac'.
+EOM
 
-if [[ "$ZSH_COPILOT_SEND_CONTEXT" == 'true' ]]; then
-    SYSTEM_PROMPT="$SYSTEM_PROMPT Context: You are user ${$(whoami)} with id ${$(id)} in directory ${$(pwd)}. Your shell is ${$(echo $SHELL)} and your terminal is ${$(echo $TERM)} running on ${$(uname -a)}. Your system is ${$(cat /etc/*-release | xargs | sed 's/ /,/g')}."
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    SYSTEM="Your system is ${$(sw_vers | xargs | sed 's/ /./g')}."
+else 
+    SYSTEM="Your system is ${$(cat /etc/*-release | xargs | sed 's/ /,/g')}."
 fi
 
 function _suggest_ai() {
+    local OPENAI_API_URL=${OPENAI_API_URL:-"api.openai.com"}
+
+    if [[ "$ZSH_COPILOT_SEND_CONTEXT" == 'true' ]]; then
+        local PROMPT="$SYSTEM_PROMPT 
+            Context: You are user $(whoami) with id $(id) in directory $(pwd). 
+            Your shell is $(echo $SHELL) and your terminal is $(echo $TERM) running on $(uname -a).
+            $SYSTEM"
+    fi
     # Get input
-    local input="${BUFFER:0:$CURSOR}"
+    local input=$(echo "${BUFFER:0:$CURSOR}" | tr '\n' ';')
     input=$(echo "$input" | sed 's/"/\\"/g')
 
     _zsh_autosuggest_clear
     zle -R "Thinking..."
 
-    local PROMPT="$SYSTEM_PROMPT"
+    PROMPT=$(echo "$PROMPT" | tr -d '\n')
     # Wasn't able to get this to work :(
     # if [[ "$ZSH_COPILOT_SEND_GIT_DIFF" == 'true' ]]; then
     #     if [[ $(git rev-parse --is-inside-work-tree) == 'true' ]]; then
@@ -51,7 +82,7 @@ function _suggest_ai() {
                 }
             ]
         }"
-    local response=$(curl 'https://api.openai.com/v1/chat/completions' \
+    local response=$(curl "https://${OPENAI_API_URL}/v1/chat/completions" \
         --silent \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer $OPENAI_API_KEY" \
