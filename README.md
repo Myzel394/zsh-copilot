@@ -40,3 +40,14 @@ zsh-copilot --help
 
 Type in your command or your message and press `CTRL + Z` to get your suggestion!
 
+## Ollama Llama3 usage
+
+### Configuration
+
+You need to have Ollama and llama3 installed : 
+
+```sh
+curl -fsSL https://ollama.com/install.sh | sh
+sudo systemctl start ollama
+ollama pull llama3.1
+```
