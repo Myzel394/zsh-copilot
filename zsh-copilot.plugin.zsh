@@ -1,6 +1,6 @@
 # Initialize default configuration parameters
 # ZSH Copilot is configured to use OpenAI by default
-# To switch to Ollama, set the ZSH_COPILOT_KEY_OLLAMA variable with the keycap of your choice
+# To switch to Ollama, set the ZSH_COPILOT_KEY_OLLAMA variable with the shortcut of your choice
 (( ! ${+ZSH_COPILOT_KEY_OPENAI} )) && typeset -g ZSH_COPILOT_KEY_OPENAI='^z'
 (( ! ${+ZSH_COPILOT_KEY_OLLAMA} )) && typeset -g ZSH_COPILOT_KEY_OLLAMA=''
 (( ! ${+ZSH_COPILOT_SEND_CONTEXT} )) && typeset -g ZSH_COPILOT_SEND_CONTEXT=true

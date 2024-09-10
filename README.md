@@ -54,7 +54,7 @@ ollama pull llama3.1
 
 ### Set Ollama active
 
-Modify the **zsh-copilot.plugin.zsh** file to set the keycap of your choice like this : 
+Modify the **zsh-copilot.plugin.zsh** file to set the shortcut  of your choice like this : 
 ```sh
 (( ! ${+ZSH_COPILOT_KEY_OPENAI} )) && typeset -g ZSH_COPILOT_KEY_OPENAI=''
 (( ! ${+ZSH_COPILOT_KEY_OLLAMA} )) && typeset -g ZSH_COPILOT_KEY_OLLAMA='^z'
