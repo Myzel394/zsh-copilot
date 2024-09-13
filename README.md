@@ -40,3 +40,22 @@ zsh-copilot --help
 
 Type in your command or your message and press `CTRL + Z` to get your suggestion!
 
+## Ollama Llama3 usage
+
+### Configuration
+
+You need to have Ollama and llama3 installed : 
+
+```sh
+curl -fsSL https://ollama.com/install.sh | sh
+sudo systemctl start ollama
+ollama pull llama3.1
+```
+
+### Set Ollama active
+
+Modify the **zsh-copilot.plugin.zsh** file to set the shortcut  of your choice like this : 
+```sh
+(( ! ${+ZSH_COPILOT_KEY_OPENAI} )) && typeset -g ZSH_COPILOT_KEY_OPENAI=''
+(( ! ${+ZSH_COPILOT_KEY_OLLAMA} )) && typeset -g ZSH_COPILOT_KEY_OLLAMA='^z'
+```
