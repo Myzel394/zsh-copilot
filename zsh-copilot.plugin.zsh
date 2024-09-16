@@ -1,15 +1,19 @@
+# Default key binding
 (( ! ${+ZSH_COPILOT_KEY} )) &&
     typeset -g ZSH_COPILOT_KEY='^z'
 
+# Configuration options
 (( ! ${+ZSH_COPILOT_SEND_CONTEXT} )) &&
     typeset -g ZSH_COPILOT_SEND_CONTEXT=true
-
-# (( ! ${+ZSH_COPILOT_SEND_GIT_DIFF} )) &&
-#     typeset -g ZSH_COPILOT_SEND_GIT_DIFF=true
 
 (( ! ${+ZSH_COPILOT_DEBUG} )) &&
     typeset -g ZSH_COPILOT_DEBUG=false
 
+# New option to select AI provider
+(( ! ${+ZSH_COPILOT_AI_PROVIDER} )) &&
+    typeset -g ZSH_COPILOT_AI_PROVIDER="openai"
+
+# System prompt
 read -r -d '' SYSTEM_PROMPT <<- EOM
   You will be given the raw input of a shell command. 
   Your task is to either complete the command or provide a new command that you think the user is trying to type. 
@@ -41,13 +45,15 @@ fi
 
 function _suggest_ai() {
     local OPENAI_API_URL=${OPENAI_API_URL:-"api.openai.com"}
+    local ANTHROPIC_API_URL=${ANTHROPIC_API_URL:-"api.anthropic.com"}
 
+    local context_info=""
     if [[ "$ZSH_COPILOT_SEND_CONTEXT" == 'true' ]]; then
-        local PROMPT="$SYSTEM_PROMPT 
-            Context: You are user $(whoami) with id $(id) in directory $(pwd). 
+        context_info="Context: You are user $(whoami) with id $(id) in directory $(pwd). 
             Your shell is $(echo $SHELL) and your terminal is $(echo $TERM) running on $(uname -a).
             $SYSTEM"
     fi
+
     # Get input
     local input=$(echo "${BUFFER:0:$CURSOR}" | tr '\n' ';')
     input=$(echo "$input" | sed 's/"/\\"/g')
@@ -55,26 +61,18 @@ function _suggest_ai() {
     _zsh_autosuggest_clear
     zle -R "Thinking..."
 
-    PROMPT=$(echo "$PROMPT" | tr -d '\n')
-    # Wasn't able to get this to work :(
-    # if [[ "$ZSH_COPILOT_SEND_GIT_DIFF" == 'true' ]]; then
-    #     if [[ $(git rev-parse --is-inside-work-tree) == 'true' ]]; then
-    #         local git_diff=$(git diff --staged --no-color)
-    #         local git_exit_code=$?
-    #         git_diff=$(echo "$git_diff" | tr '\\' ' ' | sed 's/[\$\"\`]/\\&/g' | tr '\\' '\\\\' | tr -d '\n')
-    #
-    #         if [[ git_exit_code -eq 0 ]]; then
-    #             PROMPT="$PROMPT; This is the git diff: <---->$git_diff<----> You may provide a git commit message if the user is trying to commit changes. You are an expert at committing changes, you don't give generic messages. You give the best commit messages"
-    #         fi
-    #     fi
-    # fi
+    local full_prompt=$(echo "$SYSTEM_PROMPT $context_info" | tr -d '\n')
 
-    local data="{
-            \"model\": \"gpt-4\",
+    local data
+    local response
+
+    if [[ "$ZSH_COPILOT_AI_PROVIDER" == "openai" ]]; then
+        data="{
+            \"model\": \"gpt-4o-mini\",
             \"messages\": [
                 {
                     \"role\": \"system\",
-                    \"content\": \"$PROMPT\"
+                    \"content\": \"$full_prompt\"
                 },
                 {
                     \"role\": \"user\",
@@ -82,14 +80,35 @@ function _suggest_ai() {
                 }
             ]
         }"
-    local response=$(curl "https://${OPENAI_API_URL}/v1/chat/completions" \
-        --silent \
-        -H "Content-Type: application/json" \
-        -H "Authorization: Bearer $OPENAI_API_KEY" \
-        -d $data)
-    local message=$(echo "$response" | jq -r '.choices[0].message.content')
-
-    # zle -U "$suggestion"
+        response=$(curl "https://${OPENAI_API_URL}/v1/chat/completions" \
+            --silent \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $OPENAI_API_KEY" \
+            -d "$data")
+        local message=$(echo "$response" | jq -r '.choices[0].message.content')
+    elif [[ "$ZSH_COPILOT_AI_PROVIDER" == "anthropic" ]]; then
+        data="{
+            \"model\": \"claude-3-5-sonnet-20240620\",
+            \"max_tokens\": 1000,
+            \"system\": \"$full_prompt\",
+            \"messages\": [
+                {
+                    \"role\": \"user\",
+                    \"content\": \"$input\"
+                }
+            ]
+        }"
+        response=$(curl "https://${ANTHROPIC_API_URL}/v1/messages" \
+            --silent \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -d "$data")
+        local message=$(echo "$response" | jq -r '.content[0].text')
+    else
+        echo "Invalid AI provider selected. Please choose 'openai' or 'anthropic'."
+        return 1
+    fi
 
     local first_char=${message:0:1}
     local suggestion=${message:1:${#message}}
@@ -107,7 +126,6 @@ function _suggest_ai() {
         zle -U "$suggestion"
     elif [[ "$first_char" == '+' ]]; then
         _zsh_autosuggest_suggest "$suggestion"
-         # POSTDISPLAY="$suggestion"
     fi
 }
 
@@ -117,9 +135,8 @@ function zsh-copilot() {
     echo "Configurations:"
     echo "    - ZSH_COPILOT_KEY: Key to press to get suggestions (default: ^z, value: $ZSH_COPILOT_KEY)."
     echo "    - ZSH_COPILOT_SEND_CONTEXT: If \`true\`, zsh-copilot will send context information (whoami, shell, pwd, etc.) to the AI model (default: true, value: $ZSH_COPILOT_SEND_CONTEXT)."
-    # echo "    - ZSH_COPILOT_SEND_GIT_DIFF: If \`true\`, zsh-copilot will send the git diff (if available) to the AI model (default: true, value: $ZSH_COPILOT_SEND_GIT_DIFF)."
+    echo "    - ZSH_COPILOT_AI_PROVIDER: AI provider to use ('openai' or 'anthropic', default: openai, value: $ZSH_COPILOT_AI_PROVIDER)."
 }
 
 zle -N _suggest_ai
 bindkey $ZSH_COPILOT_KEY _suggest_ai
-
