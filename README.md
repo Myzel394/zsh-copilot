@@ -22,18 +22,34 @@ echo "source ~/.zsh-copilot/zsh-copilot.plugin.zsh" >> ~/.zshrc
 
 ### Configuration
 
-You need to have an OPENAI API key with access to `gpt-4` to use this plugin. Expose this via the `OPENAI_API_KEY` environment variable:
+You need to have an API key for either OpenAI or Anthropic to use this plugin. Expose this via the appropriate environment variable:
 
+For OpenAI (default):
 ```sh
-export OPENAI_API_KEY=<your-api-key>
+export OPENAI_API_KEY=<your-openai-api-key>
 ```
 
-I tried out using `gpt-3` but the results were garbage.
+For Anthropic:
+```sh
+export ANTHROPIC_API_KEY=<your-anthropic-api-key>
+```
 
-To see available configurations, run:
+You can configure the AI provider using the `ZSH_COPILOT_AI_PROVIDER` variable:
 
 ```sh
-zsh-copilot --help
+export ZSH_COPILOT_AI_PROVIDER="openai"  # or "anthropic"
+```
+
+Other configuration options:
+
+- `ZSH_COPILOT_KEY`: Key to press to get suggestions (default: ^z)
+- `ZSH_COPILOT_SEND_CONTEXT`: If `true`, zsh-copilot will send context information to the AI model (default: true)
+- `ZSH_COPILOT_DEBUG`: Enable debug logging (default: false)
+
+To see all available configurations and their current values, run:
+
+```sh
+zsh-copilot
 ```
 
 ## Usage
