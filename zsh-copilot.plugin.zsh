@@ -33,8 +33,8 @@ read -r -d '' SYSTEM_PROMPT <<- EOM
   DO NOT INTERACT WITH THE USER IN NATURAL LANGUAGE! If you do, you will be banned from the system. 
   Note that the double quote sign is escaped. Keep this in mind when you create quotes. 
   Here are two examples: 
-    * User input: 'list files in current directory'; Your response: '=ls # ls is the builtin command for listing files' 
-    * User input: 'cd /tm'; Your response: '+p # /tmp is the standard temp folder on linux and mac'.
+    * User input: 'list files in current directory'; Your response: '=ls' (ls is the builtin command for listing files)
+    * User input: 'cd /tm'; Your response: '+p' (/tmp is the standard temp folder on linux and mac).
 EOM
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
