@@ -11,7 +11,7 @@
 
 # New option to select AI provider
 (( ! ${+ZSH_COPILOT_AI_PROVIDER} )) &&
-    typeset -g ZSH_COPILOT_AI_PROVIDER="openai"
+    typeset -g ZSH_COPILOT_AI_PROVIDER="openrouter"
 
 # System prompt
 read -r -d '' SYSTEM_PROMPT <<- EOM
@@ -46,6 +46,7 @@ fi
 function _suggest_ai() {
     local OPENAI_API_URL=${OPENAI_API_URL:-"api.openai.com"}
     local ANTHROPIC_API_URL=${ANTHROPIC_API_URL:-"api.anthropic.com"}
+    local OPENROUTER_API_URL=${OPENROUTER_API_URL:-"openrouter.ai"}
 
     local context_info=""
     if [[ "$ZSH_COPILOT_SEND_CONTEXT" == 'true' ]]; then
@@ -105,6 +106,26 @@ function _suggest_ai() {
             -H "anthropic-version: 2023-06-01" \
             -d "$data")
         local message=$(echo "$response" | jq -r '.content[0].text')
+    elif [[ "$ZSH_COPILOT_AI_PROVIDER" == "openrouter" ]]; then
+        data="{
+            \"model\": \"openrouter/auto\",
+            \"messages\": [
+                {
+                    \"role\": \"system\",
+                    \"content\": \"$full_prompt\"
+                },
+                {
+                    \"role\": \"user\",
+                    \"content\": \"$input\"
+                }
+            ]
+        }"
+        response=$(curl "https://${OPENROUTER_API_URL}/api/v1/chat/completions" \
+            --silent \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $OPENROUTER_API_KEY" \
+            -d "$data")
+        local message=$(echo "$response" | jq -r '.choices[0].message.content')
     else
         echo "Invalid AI provider selected. Please choose 'openai' or 'anthropic'."
         return 1
