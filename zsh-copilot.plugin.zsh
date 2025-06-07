@@ -10,11 +10,20 @@
     typeset -g ZSH_COPILOT_DEBUG=false
 
 # New option to select AI provider
-(( ! ${+ZSH_COPILOT_AI_PROVIDER} )) &&
-    typeset -g ZSH_COPILOT_AI_PROVIDER="openai"
+if [[ -z "$ZSH_COPILOT_AI_PROVIDER" ]]; then
+    if [[ -n "$OPENAI_API_KEY" ]]; then
+        typeset -g ZSH_COPILOT_AI_PROVIDER="openai"
+    elif [[ -n "$ANTHROPIC_API_KEY" ]]; then
+        typeset -g ZSH_COPILOT_AI_PROVIDER="anthropic"
+    else
+        echo "No AI provider selected. Please set either OPENAI_API_KEY or ANTHROPIC_API_KEY."
+        return 1
+    fi
+fi
 
 # System prompt
-read -r -d '' SYSTEM_PROMPT <<- EOM
+if [[ -z "$ZSH_COPILOT_SYSTEM_PROMPT" ]]; then
+read -r -d '' ZSH_COPILOT_SYSTEM_PROMPT <<- EOM
   You will be given the raw input of a shell command. 
   Your task is to either complete the command or provide a new command that you think the user is trying to type. 
   If you return a completely new command for the user, prefix is with an equal sign (=). 
@@ -36,6 +45,7 @@ read -r -d '' SYSTEM_PROMPT <<- EOM
     * User input: 'list files in current directory'; Your response: '=ls' (ls is the builtin command for listing files)
     * User input: 'cd /tm'; Your response: '+p' (/tmp is the standard temp folder on linux and mac).
 EOM
+fi
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
     SYSTEM="Your system is ${$(sw_vers | xargs | sed 's/ /./g')}."
@@ -61,7 +71,7 @@ function _suggest_ai() {
     _zsh_autosuggest_clear
     zle -R "Thinking..."
 
-    local full_prompt=$(echo "$SYSTEM_PROMPT $context_info" | tr -d '\n')
+    local full_prompt=$(echo "$ZSH_COPILOT_SYSTEM_PROMPT $context_info" | tr -d '\n')
 
     local data
     local response
@@ -135,7 +145,8 @@ function zsh-copilot() {
     echo "Configurations:"
     echo "    - ZSH_COPILOT_KEY: Key to press to get suggestions (default: ^z, value: $ZSH_COPILOT_KEY)."
     echo "    - ZSH_COPILOT_SEND_CONTEXT: If \`true\`, zsh-copilot will send context information (whoami, shell, pwd, etc.) to the AI model (default: true, value: $ZSH_COPILOT_SEND_CONTEXT)."
-    echo "    - ZSH_COPILOT_AI_PROVIDER: AI provider to use ('openai' or 'anthropic', default: openai, value: $ZSH_COPILOT_AI_PROVIDER)."
+    echo "    - ZSH_COPILOT_AI_PROVIDER: AI provider to use ('openai' or 'anthropic', value: $ZSH_COPILOT_AI_PROVIDER)."
+    echo "    - ZSH_COPILOT_SYSTEM_PROMPT: System prompt to use for the AI model (uses a built-in prompt by default)."
 }
 
 zle -N _suggest_ai
