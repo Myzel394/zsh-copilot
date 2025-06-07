@@ -18,15 +18,15 @@ Please make sure you have the following dependencies installed:
 
 ### Oh My Zsh
 
-1. Clone `zsh-copilot` into $ZSH_CUSTOM/plugins (by default ~/.config/oh-my-zsh/custom/plugins)
+1. Clone `zsh-copilot` into `$ZSH_CUSTOM/plugins` (by default ~/.config/oh-my-zsh/custom/plugins)
 
 ```sh
-git clone https://git.myzel394.app/Myzel394/zsh-copilot ${ZSH_CUSTOM:-~/.config/oh-my-zsh/custom}/plugins/zsh-autosuggestions
+git clone https://git.myzel394.app/Myzel394/zsh-copilot ${ZSH_CUSTOM:-~/.config/oh-my-zsh/custom}/plugins/zsh-copilot
 ```
 
 2. Add `zsh-copilot` to the plugins array in your `.zshrc` file:
 
-```sh
+```bash
 plugins=( 
     # your other plugins...
     zsh-autosuggestions
