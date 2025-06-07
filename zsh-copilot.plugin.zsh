@@ -32,15 +32,18 @@ read -r -d '' ZSH_COPILOT_SYSTEM_PROMPT <<- EOM
   If you return a completion for the user's command, prefix it with a plus sign (+). 
   MAKE SURE TO ONLY INCLUDE THE REST OF THE COMPLETION!!! 
   Do not write any leading or trailing characters except if required for the completion to work. 
+
   Only respond with either a completion or a new command, not both. 
   Your response may only start with either a plus sign or an equal sign.
   Your response MAY NOT start with both! This means that your response IS NOT ALLOWED to start with '+=' or '=+'.
-  You MAY explain the command by writing a short line after the comment symbol (#).
+
+  Your response MAY NOT contain any newlines!
+  Do NOT add any additional text, comments, or explanations to your response.
   Do not ask for more information, you won't receive it. 
+
   Your response will be run in the user's shell. 
   Make sure input is escaped correctly if needed so. 
   Your input should be able to run without any modifications to it.
-  Don't you dare to return anything else other than a shell command!!! 
   DO NOT INTERACT WITH THE USER IN NATURAL LANGUAGE! If you do, you will be banned from the system. 
   Note that the double quote sign is escaped. Keep this in mind when you create quotes. 
   Here are two examples: 
@@ -84,6 +87,7 @@ function _suggest_ai() {
     local message
 
     if [[ "$ZSH_COPILOT_AI_PROVIDER" == "openai" ]]; then
+        # OpenAI's API payload
         data="{
             \"model\": \"gpt-4o-mini\",
             \"messages\": [
@@ -103,10 +107,11 @@ function _suggest_ai() {
             -H "Authorization: Bearer $OPENAI_API_KEY" \
             -d "$data")
 
-        message=$(echo "$response" | jq -r '.choices[0].message.content')
+        message=$(echo "$response" | tr -d '\n' | jq -r '.choices[0].message.content')
     elif [[ "$ZSH_COPILOT_AI_PROVIDER" == "anthropic" ]]; then
+        # Anthropic's API payload
         data="{
-            \"model\": \"claude-3-5-sonnet-20240620\",
+            \"model\": \"claude-3-5-sonnet-latest\",
             \"max_tokens\": 1000,
             \"system\": \"$full_prompt\",
             \"messages\": [
@@ -123,7 +128,7 @@ function _suggest_ai() {
             -H "anthropic-version: 2023-06-01" \
             -d "$data")
 
-        message=$(echo "$response" | jq -r '.content[0].text')
+        message=$(echo "$response" | tr -d '\n' | jq -r '.content[0].text')
     else
         echo "Invalid AI provider selected. Please choose 'openai' or 'anthropic'."
         return 1
