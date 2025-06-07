@@ -1,5 +1,6 @@
-# zsh-copilot
+**NOTICE**: I'm slowly migrating my repositories to my own Git server. Please visit this repository at [https://git.myzel394.app/Myzel394/zsh-copilot](https://git.myzel394.app/Myzel394/zsh-copilot) for the latest updates.
 
+# zsh-copilot
 
 Get suggestions **truly** in your shell. No `suggest` bullshit. Just press `CTRL + Z` and get your suggestion.
 
@@ -15,12 +16,31 @@ Please make sure you have the following dependencies installed:
 * [jq](https://github.com/jqlang/jq)
 * [curl](https://github.com/curl/curl)
 
+### Oh My Zsh
+
+1. Clone `zsh-copilot` into `$ZSH_CUSTOM/plugins` (by default ~/.config/oh-my-zsh/custom/plugins)
+
 ```sh
-git clone https://github.com/Myzel394/zsh-copilot.git ~/.zsh-copilot
-echo "source ~/.zsh-copilot/zsh-copilot.plugin.zsh" >> ~/.zshrc
+git clone https://git.myzel394.app/Myzel394/zsh-copilot ${ZSH_CUSTOM:-~/.config/oh-my-zsh/custom}/plugins/zsh-copilot
 ```
 
-### Configuration
+2. Add `zsh-copilot` to the plugins array in your `.zshrc` file:
+
+```bash
+plugins=( 
+    # your other plugins...
+    zsh-autosuggestions
+)
+```
+
+### Manual Installation
+
+```sh
+git clone https://git.myzel394.app/Myzel394/zsh-copilot ~/.config/zsh-copilot
+echo "source ~/.config/zsh-copilot/zsh-copilot.plugin.zsh" >> ~/.zshrc
+```
+
+## Configuration
 
 You need to have an API key for either OpenAI or Anthropic to use this plugin. Expose this via the appropriate environment variable:
 
