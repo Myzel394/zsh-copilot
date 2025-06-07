@@ -1,3 +1,5 @@
+#!/usr/bin/env zsh
+
 # Default key binding
 (( ! ${+ZSH_COPILOT_KEY} )) &&
     typeset -g ZSH_COPILOT_KEY='^z'
@@ -47,24 +49,27 @@ read -r -d '' ZSH_COPILOT_SYSTEM_PROMPT <<- EOM
 EOM
 fi
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    SYSTEM="Your system is ${$(sw_vers | xargs | sed 's/ /./g')}."
-else 
-    SYSTEM="Your system is ${$(cat /etc/*-release | xargs | sed 's/ /,/g')}."
-fi
-
 function _suggest_ai() {
-    local OPENAI_API_URL=${OPENAI_API_URL:-"api.openai.com"}
-    local ANTHROPIC_API_URL=${ANTHROPIC_API_URL:-"api.anthropic.com"}
+    #### Prepare environment
+    local openai_api_url=${OPENAI_API_URL:-"api.openai.com"}
+    local anthropic_api_url=${ANTHROPIC_API_URL:-"api.anthropic.com"}
 
     local context_info=""
     if [[ "$ZSH_COPILOT_SEND_CONTEXT" == 'true' ]]; then
+        local system
+
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            system="Your system is ${$(sw_vers | xargs | sed 's/ /./g')}."
+        else 
+            system="Your system is ${$(cat /etc/*-release | xargs | sed 's/ /,/g')}."
+        fi
+
         context_info="Context: You are user $(whoami) with id $(id) in directory $(pwd). 
             Your shell is $(echo $SHELL) and your terminal is $(echo $TERM) running on $(uname -a).
-            $SYSTEM"
+            $system"
     fi
 
-    # Get input
+    ##### Get input
     local input=$(echo "${BUFFER:0:$CURSOR}" | tr '\n' ';')
     input=$(echo "$input" | sed 's/"/\\"/g')
 
@@ -73,8 +78,10 @@ function _suggest_ai() {
 
     local full_prompt=$(echo "$ZSH_COPILOT_SYSTEM_PROMPT $context_info" | tr -d '\n')
 
+    ##### Fetch message
     local data
     local response
+    local message
 
     if [[ "$ZSH_COPILOT_AI_PROVIDER" == "openai" ]]; then
         data="{
@@ -90,12 +97,13 @@ function _suggest_ai() {
                 }
             ]
         }"
-        response=$(curl "https://${OPENAI_API_URL}/v1/chat/completions" \
+        response=$(curl "https://${openai_api_url}/v1/chat/completions" \
             --silent \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $OPENAI_API_KEY" \
             -d "$data")
-        local message=$(echo "$response" | jq -r '.choices[0].message.content')
+
+        message=$(echo "$response" | jq -r '.choices[0].message.content')
     elif [[ "$ZSH_COPILOT_AI_PROVIDER" == "anthropic" ]]; then
         data="{
             \"model\": \"claude-3-5-sonnet-20240620\",
@@ -108,17 +116,20 @@ function _suggest_ai() {
                 }
             ]
         }"
-        response=$(curl "https://${ANTHROPIC_API_URL}/v1/messages" \
+        response=$(curl "https://${anthropic_api_url}/v1/messages" \
             --silent \
             -H "Content-Type: application/json" \
             -H "x-api-key: $ANTHROPIC_API_KEY" \
             -H "anthropic-version: 2023-06-01" \
             -d "$data")
-        local message=$(echo "$response" | jq -r '.content[0].text')
+
+        message=$(echo "$response" | jq -r '.content[0].text')
     else
         echo "Invalid AI provider selected. Please choose 'openai' or 'anthropic'."
         return 1
     fi
+
+    ##### Process response
 
     local first_char=${message:0:1}
     local suggestion=${message:1:${#message}}
@@ -127,6 +138,8 @@ function _suggest_ai() {
         touch /tmp/zsh-copilot.log
         echo "$(date);INPUT:$input;RESPONSE:$response;FIRST_CHAR:$first_char;SUGGESTION:$suggestion:DATA:$data" >> /tmp/zsh-copilot.log
     fi
+
+    ##### And now, let's actually show the suggestion to the user!
 
     if [[ "$first_char" == '=' ]]; then
         # Reset user input
@@ -150,4 +163,5 @@ function zsh-copilot() {
 }
 
 zle -N _suggest_ai
-bindkey $ZSH_COPILOT_KEY _suggest_ai
+bindkey "$ZSH_COPILOT_KEY" _suggest_ai
+
