@@ -15,12 +15,31 @@ Please make sure you have the following dependencies installed:
 * [jq](https://github.com/jqlang/jq)
 * [curl](https://github.com/curl/curl)
 
+### Oh My Zsh
+
+1. Clone `zsh-copilot` into $ZSH_CUSTOM/plugins (by default ~/.oh-my-zsh/custom/plugins)
+
 ```sh
-git clone https://github.com/Myzel394/zsh-copilot.git ~/.zsh-copilot
-echo "source ~/.zsh-copilot/zsh-copilot.plugin.zsh" >> ~/.zshrc
+git clone https://git.myzel394.app/Myzel394/zsh-copilot ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
 ```
 
-### Configuration
+2. Add `zsh-copilot` to the plugins array in your `.zshrc` file:
+
+```sh
+plugins=( 
+    # your other plugins...
+    zsh-autosuggestions
+)
+```
+
+### Manual Installation
+
+```sh
+git clone https://git.myzel394.app/Myzel394/zsh-copilot ~/.config/zsh-copilot
+echo "source ~/.config/zsh-copilot/zsh-copilot.plugin.zsh" >> ~/.zshrc
+```
+
+## Configuration
 
 You need to have an API key for either OpenAI or Anthropic to use this plugin. Expose this via the appropriate environment variable:
 
