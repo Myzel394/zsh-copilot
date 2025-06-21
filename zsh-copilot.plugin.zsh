@@ -52,36 +52,11 @@ read -r -d '' ZSH_COPILOT_SYSTEM_PROMPT <<- EOM
 EOM
 fi
 
-function _suggest_ai() {
-    #### Prepare environment
-    local openai_api_url=${OPENAI_API_URL:-"api.openai.com"}
-    local anthropic_api_url=${ANTHROPIC_API_URL:-"api.anthropic.com"}
+if [[ "$ZSH_COPILOT_DEBUG" == 'true' ]]; then
+    touch /tmp/zsh-copilot.log
+fi
 
-    local context_info=""
-    if [[ "$ZSH_COPILOT_SEND_CONTEXT" == 'true' ]]; then
-        local system
-
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            system="Your system is ${$(sw_vers | xargs | sed 's/ /./g')}."
-        else 
-            system="Your system is ${$(cat /etc/*-release | xargs | sed 's/ /,/g')}."
-        fi
-
-        context_info="Context: You are user $(whoami) with id $(id) in directory $(pwd). 
-            Your shell is $(echo $SHELL) and your terminal is $(echo $TERM) running on $(uname -a).
-            $system"
-    fi
-
-    ##### Get input
-    local input=$(echo "${BUFFER:0:$CURSOR}" | tr '\n' ';')
-    input=$(echo "$input" | sed 's/"/\\"/g')
-
-    _zsh_autosuggest_clear
-    zle -R "Thinking..."
-
-    local full_prompt=$(echo "$ZSH_COPILOT_SYSTEM_PROMPT $context_info" | tr -d '\n')
-
-    ##### Fetch message
+function _fetch_suggestions() {
     local data
     local response
     local message
@@ -106,6 +81,16 @@ function _suggest_ai() {
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $OPENAI_API_KEY" \
             -d "$data")
+        response_code=$?
+
+        if [[ "$ZSH_COPILOT_DEBUG" == 'true' ]]; then
+            echo "{\"date\":\"$(date)\",\"log\":\"Called OpenAI API\",\"input\":\"$input\",\"response\":\"$response\",\"response_code\":\"$response_code\"}" >> /tmp/zsh-copilot.log
+        fi
+
+        if [[ $response_code -ne 0 ]]; then
+            echo "Error fetching suggestions from the OpenAI API. Please check your API key and try again." > /tmp/.zsh_copilot_error
+            return 1
+        fi
 
         message=$(echo "$response" | tr -d '\n' | jq -r '.choices[0].message.content')
     elif [[ "$ZSH_COPILOT_AI_PROVIDER" == "anthropic" ]]; then
@@ -127,6 +112,20 @@ function _suggest_ai() {
             -H "x-api-key: $ANTHROPIC_API_KEY" \
             -H "anthropic-version: 2023-06-01" \
             -d "$data")
+        response_code=$?
+
+        if [[ "$ZSH_COPILOT_DEBUG" == 'true' ]]; then
+            echo "{\"date\":\"$(date)\",\"log\":\"Called Anthropic API\",\"input\":\"$input\",\"response\":\"$response\",\"response_code\":\"$response_code\"}" >> /tmp/zsh-copilot.log
+        fi
+
+        if [[ $response_code -ne 0 ]] || [[ $(echo "$response" | jq -r '.type') == 'error' ]]; then
+            if [[ "$ZSH_COPILOT_DEBUG" == 'true' ]]; then
+                echo "{\"date\":\"$(date)\",\"log\":\"Error fetching Anthropic\"}" >> /tmp/zsh-copilot.log
+            fi
+
+            echo "Error fetching suggestions from the Anthropic API. Please check your API key and try again." > /tmp/.zsh_copilot_error
+            return 1
+        fi
 
         message=$(echo "$response" | tr -d '\n' | jq -r '.content[0].text')
     else
@@ -134,14 +133,92 @@ function _suggest_ai() {
         return 1
     fi
 
+    echo "$message" > /tmp/zsh_copilot_suggestion || return 1
+}
+
+
+function _show_loading_animation() {
+    local pid=$1
+    local interval=0.1
+    local animation_chars=(".", "..", "...")
+    local i=0
+
+    cleanup() {
+      kill $pid
+      echo -ne "\e[?25h"
+    }
+    trap cleanup SIGINT
+    
+    while kill -0 $pid 2>/dev/null; do
+        # Display current animation frame
+        zle -R "${animation_chars[$i]}"
+        
+        # Move to next frame
+        i=$(( (i + 1) % ${#animation_chars[@]} ))
+        
+        # Wait for interval
+        sleep $interval
+    done
+
+    echo -ne "\e[?25h"
+    trap - SIGINT
+}
+
+function _suggest_ai() {
+    #### Prepare environment
+    local openai_api_url=${OPENAI_API_URL:-"api.openai.com"}
+    local anthropic_api_url=${ANTHROPIC_API_URL:-"api.anthropic.com"}
+
+    local context_info=""
+    if [[ "$ZSH_COPILOT_SEND_CONTEXT" == 'true' ]]; then
+        local system
+
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            system="Your system is ${$(sw_vers | xargs | sed 's/ /./g')}."
+        else 
+            system="Your system is ${$(cat /etc/*-release | xargs | sed 's/ /,/g')}."
+        fi
+
+        context_info="Context: You are user $(whoami) with id $(id) in directory $(pwd). 
+            Your shell is $(echo $SHELL) and your terminal is $(echo $TERM) running on $(uname -a).
+            $system"
+    fi
+
+    ##### Get input
+    rm -f /tmp/zsh_copilot_suggestion
+    local input=$(echo "${BUFFER:0:$CURSOR}" | tr '\n' ';')
+    input=$(echo "$input" | sed 's/"/\\"/g')
+
+    _zsh_autosuggest_clear
+
+    local full_prompt=$(echo "$ZSH_COPILOT_SYSTEM_PROMPT $context_info" | tr -d '\n')
+
+    ##### Fetch message
+    read < <(_fetch_suggestions & echo $!)
+    local pid=$REPLY
+
+    _show_loading_animation $pid
+    local response_code=$?
+
+    if [[ "$ZSH_COPILOT_DEBUG" == 'true' ]]; then
+        echo "{\"date\":\"$(date)\",\"log\":\"Fetched message\",\"input\":\"$input\",\"response\":\"$response_code\",\"message\":\"$message\"}" >> /tmp/zsh-copilot.log
+    fi
+
+    if [[ ! -f /tmp/zsh_copilot_suggestion ]]; then
+        _zsh_autosuggest_clear
+        echo $(cat /tmp/.zsh_copilot_error 2>/dev/null || echo "No suggestion available at this time. Please try again later.")
+        return 1
+    fi
+
+    local message=$(cat /tmp/zsh_copilot_suggestion)
+
     ##### Process response
 
     local first_char=${message:0:1}
     local suggestion=${message:1:${#message}}
     
     if [[ "$ZSH_COPILOT_DEBUG" == 'true' ]]; then
-        touch /tmp/zsh-copilot.log
-        echo "$(date);INPUT:$input;RESPONSE:$response;FIRST_CHAR:$first_char;SUGGESTION:$suggestion:DATA:$data" >> /tmp/zsh-copilot.log
+        echo "{\"date\":\"$(date)\",\"log\":\"Suggestion extracted.\",\"input\":\"$input\",\"response\":\"$response\",\"first_char\":\"$first_char\",\"suggestion\":\"$suggestion\",\"data\":\"$data\"}" >> /tmp/zsh-copilot.log
     fi
 
     ##### And now, let's actually show the suggestion to the user!
