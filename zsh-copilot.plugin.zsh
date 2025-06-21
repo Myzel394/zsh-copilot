@@ -140,8 +140,8 @@ function _fetch_suggestions() {
 function _show_loading_animation() {
     local pid=$1
     local interval=0.1
-    local animation_chars=(".", "..", "...")
-    local i=0
+    local animation_chars=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
+    local i=1
 
     cleanup() {
       kill $pid
@@ -151,12 +151,15 @@ function _show_loading_animation() {
     
     while kill -0 $pid 2>/dev/null; do
         # Display current animation frame
-        zle -R "${animation_chars[$i]}"
-        
-        # Move to next frame
+        zle -R "${animation_chars[i]}"
+
+        # Update index, make sure it starts at 1
         i=$(( (i + 1) % ${#animation_chars[@]} ))
+
+        if [[ $i -eq 0 ]]; then
+            i=1
+        fi
         
-        # Wait for interval
         sleep $interval
     done
 
