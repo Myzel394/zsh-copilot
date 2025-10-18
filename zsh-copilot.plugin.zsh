@@ -17,8 +17,10 @@ if [[ -z "$ZSH_COPILOT_AI_PROVIDER" ]]; then
         typeset -g ZSH_COPILOT_AI_PROVIDER="openai"
     elif [[ -n "$ANTHROPIC_API_KEY" ]]; then
         typeset -g ZSH_COPILOT_AI_PROVIDER="anthropic"
+    elif [[ -n "$MISTRAL_API_KEY" ]]; then
+        typeset -g ZSH_COPILOT_AI_PROVIDER="mistral"
     else
-        echo "No AI provider selected. Please set either OPENAI_API_KEY or ANTHROPIC_API_KEY."
+        echo "No AI provider selected. Please set either OPENAI_API_KEY or ANTHROPIC_API_KEY or MISTRAL_API_KEY."
         return 1
     fi
 fi
@@ -128,8 +130,45 @@ function _fetch_suggestions() {
         fi
 
         message=$(echo "$response" | tr -d '\n' | jq -r '.content[0].text')
+    elif [[ "$ZSH_COPILOT_AI_PROVIDER" == "mistral" ]]; then
+        # Mistral API payload
+        data="{
+            \"model\": \"codestral-latest\",
+            \"messages\": [
+                {
+                    \"role\": \"system\",
+                    \"content\": \"$full_prompt\"
+                },
+                {
+                    \"role\": \"user\",
+                    \"content\": \"$input\"
+                }
+            ]
+        }"
+        response=$(curl "https://$mistral_api_url/v1/chat/completions" \
+            --silent \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $MISTRAL_API_KEY" \
+            -d "$data")
+        response_code=$?
+
+        if [[ "$ZSH_COPILOT_DEBUG" == 'true' ]]; then
+            echo "{\"date\":\"$(date)\",\"log\":\"Called Mistral API\",\"input\":\"$input\",\"response\":\"$response\",\"response_code\":\"$response_code\"}" >> /tmp/zsh-copilot.log
+        fi
+
+        if [[ $response_code -ne 0 ]] || [[ $(echo "$response" | jq -r '.detail') == 'Unauthorized' ]]; then
+            if [[ "$ZSH_COPILOT_DEBUG" == 'true' ]]; then
+                echo "{\"date\":\"$(date)\",\"log\":\"Error fetching Mistral\"}" >> /tmp/zsh-copilot.log
+            fi
+
+            echo "Error fetching suggestions from the Mistral API. Please check your API key and try again." > /tmp/.zsh_copilot_error
+            return 1
+        fi
+
+        message=$(echo "$response" | tr -d '\n' | jq -r '.choices[0].message.content')
+    
     else
-        echo "Invalid AI provider selected. Please choose 'openai' or 'anthropic'."
+        echo "Invalid AI provider selected. Please choose 'openai' or 'anthropic' or 'mistral'."
         return 1
     fi
 
@@ -171,6 +210,7 @@ function _suggest_ai() {
     #### Prepare environment
     local openai_api_url=${OPENAI_API_URL:-"api.openai.com"}
     local anthropic_api_url=${ANTHROPIC_API_URL:-"api.anthropic.com"}
+    local mistral_api_url=${MISTRAL_API_URL:-"api.mistral.ai"}
 
     local context_info=""
     if [[ "$ZSH_COPILOT_SEND_CONTEXT" == 'true' ]]; then
@@ -243,7 +283,7 @@ function zsh-copilot() {
     echo "Configurations:"
     echo "    - ZSH_COPILOT_KEY: Key to press to get suggestions (default: ^z, value: $ZSH_COPILOT_KEY)."
     echo "    - ZSH_COPILOT_SEND_CONTEXT: If \`true\`, zsh-copilot will send context information (whoami, shell, pwd, etc.) to the AI model (default: true, value: $ZSH_COPILOT_SEND_CONTEXT)."
-    echo "    - ZSH_COPILOT_AI_PROVIDER: AI provider to use ('openai' or 'anthropic', value: $ZSH_COPILOT_AI_PROVIDER)."
+    echo "    - ZSH_COPILOT_AI_PROVIDER: AI provider to use ('openai' or 'anthropic' or 'mistral', value: $ZSH_COPILOT_AI_PROVIDER)."
     echo "    - ZSH_COPILOT_SYSTEM_PROMPT: System prompt to use for the AI model (uses a built-in prompt by default)."
 }
 
