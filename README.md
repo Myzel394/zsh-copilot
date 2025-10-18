@@ -54,10 +54,15 @@ For Anthropic:
 export ANTHROPIC_API_KEY=<your-anthropic-api-key>
 ```
 
+For Mistral:
+```sh
+export MISTRAL_API_KEY=<your-mistral-api-key>
+```
+
 You can configure the AI provider using the `ZSH_COPILOT_AI_PROVIDER` variable:
 
 ```sh
-export ZSH_COPILOT_AI_PROVIDER="openai"  # or "anthropic"
+export ZSH_COPILOT_AI_PROVIDER="openai"  # or "anthropic" or "mistral"
 ```
 
 Other configuration options:
