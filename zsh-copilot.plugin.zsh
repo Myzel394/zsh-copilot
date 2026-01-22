@@ -27,15 +27,8 @@ fi
 if [[ -z "$ZSH_COPILOT_SYSTEM_PROMPT" ]]; then
 read -r -d '' ZSH_COPILOT_SYSTEM_PROMPT <<- EOM
   You will be given the raw input of a shell command. 
-  Your task is to either complete the command or provide a new command that you think the user is trying to type. 
-  If you return a completely new command for the user, prefix is with an equal sign (=). 
-  If you return a completion for the user's command, prefix it with a plus sign (+). 
-  MAKE SURE TO ONLY INCLUDE THE REST OF THE COMPLETION!!! 
-  Do not write any leading or trailing characters except if required for the completion to work. 
-
-  Only respond with either a completion or a new command, not both. 
-  Your response may only start with either a plus sign or an equal sign.
-  Your response MAY NOT start with both! This means that your response IS NOT ALLOWED to start with '+=' or '=+'.
+  Your task is to provide a command the user is trying to execute.
+  Return the whole command that you think the user wants to run.
 
   Your response MAY NOT contain any newlines!
   Do NOT add any additional text, comments, or explanations to your response.
@@ -44,11 +37,11 @@ read -r -d '' ZSH_COPILOT_SYSTEM_PROMPT <<- EOM
   Your response will be run in the user's shell. 
   Make sure input is escaped correctly if needed so. 
   Your input should be able to run without any modifications to it.
-  DO NOT INTERACT WITH THE USER IN NATURAL LANGUAGE! If you do, you will be banned from the system. 
+  DO NOT INTERACT WITH THE USER IN NATURAL LANGUAGE!
   Note that the double quote sign is escaped. Keep this in mind when you create quotes. 
   Here are two examples: 
-    * User input: 'list files in current directory'; Your response: '=ls' (ls is the builtin command for listing files)
-    * User input: 'cd /tm'; Your response: '+p' (/tmp is the standard temp folder on linux and mac).
+    * User input: 'list files in current directory'; Your response: 'ls' (ls is the builtin command for listing files)
+    * User input: 'cd /tm'; Your response: 'cd /tmp' (/tmp is the standard temp folder on linux and mac).
 EOM
 fi
 
@@ -60,6 +53,8 @@ function _fetch_suggestions() {
     local data
     local response
     local message
+
+    local input=$1
 
     if [[ "$ZSH_COPILOT_AI_PROVIDER" == "openai" ]]; then
         # OpenAI's API payload
@@ -96,8 +91,8 @@ function _fetch_suggestions() {
     elif [[ "$ZSH_COPILOT_AI_PROVIDER" == "anthropic" ]]; then
         # Anthropic's API payload
         data="{
-            \"model\": \"claude-3-5-sonnet-latest\",
-            \"max_tokens\": 1000,
+            \"model\": \"claude-3-haiku-20240307\",
+            \"max_tokens\": 500,
             \"system\": \"$full_prompt\",
             \"messages\": [
                 {
@@ -197,14 +192,14 @@ function _suggest_ai() {
     local full_prompt=$(echo "$ZSH_COPILOT_SYSTEM_PROMPT $context_info" | tr -d '\n')
 
     ##### Fetch message
-    read < <(_fetch_suggestions & echo $!)
+    read < <(_fetch_suggestions $input & echo $!)
     local pid=$REPLY
 
     _show_loading_animation $pid
     local response_code=$?
 
     if [[ "$ZSH_COPILOT_DEBUG" == 'true' ]]; then
-        echo "{\"date\":\"$(date)\",\"log\":\"Fetched message\",\"input\":\"$input\",\"response\":\"$response_code\",\"message\":\"$message\"}" >> /tmp/zsh-copilot.log
+        echo "{\"date\":\"$(date)\",\"log\":\"Fetched message\",\"input\":\"$input\",\"response_code\":\"$response_code\",\"message\":\"$message\"}" >> /tmp/zsh-copilot.log
     fi
 
     if [[ ! -f /tmp/zsh_copilot_suggestion ]]; then
@@ -217,27 +212,35 @@ function _suggest_ai() {
 
     ##### Process response
 
-    local first_char=${message:0:1}
-    local suggestion=${message:1:${#message}}
-    
     if [[ "$ZSH_COPILOT_DEBUG" == 'true' ]]; then
-        echo "{\"date\":\"$(date)\",\"log\":\"Suggestion extracted.\",\"input\":\"$input\",\"response\":\"$response\",\"first_char\":\"$first_char\",\"suggestion\":\"$suggestion\",\"data\":\"$data\"}" >> /tmp/zsh-copilot.log
+        echo "{\"date\":\"$(date)\",\"log\":\"Suggestion extracted.\",\"input\":\"$input\",\"response\":\"$response\",\"message\":\"$message\",\"data\":\"$data\"}" >> /tmp/zsh-copilot.log
     fi
 
     ##### And now, let's actually show the suggestion to the user!
 
-    if [[ "$first_char" == '=' ]]; then
-        # Reset user input
-        BUFFER=""
-        CURSOR=0
+    # Reset user input
+    BUFFER=""
+    CURSOR=0
 
-        zle -U "$suggestion"
-    elif [[ "$first_char" == '+' ]]; then
-        _zsh_autosuggest_suggest "$suggestion"
-    fi
+    zle -U "$message"
 }
 
 function zsh-copilot() {
+    # Check if openai is selected and API key is set
+    if [[ "$ZSH_COPILOT_AI_PROVIDER" == "openai" && -n "$OPENAI_API_KEY" ]]; then
+        echo "OpenAI is selected as AI provider and the key is set."
+    elif [[ "$ZSH_COPILOT_AI_PROVIDER" == "anthropic" && -n "$ANTHROPIC_API_KEY" ]]; then
+        echo "Anthropic is selected as AI provider and the key is set."
+    else
+        if [[ -z"$ZSH_COPILOT_AI_PROVIDER" ]]; then
+            echo "Error: No AI provider selected. Please set ZSH_COPILOT_AI_PROVIDER to 'openai' or 'anthropic'."
+            exit 1
+        else
+            echo "Error: API key for $ZSH_COPILOT_AI_PROVIDER is not set. Please set the appropriate environment variable."
+            exit 1
+        fi
+    fi
+
     echo "ZSH Copilot is now active. Press $ZSH_COPILOT_KEY to get suggestions."
     echo ""
     echo "Configurations:"
