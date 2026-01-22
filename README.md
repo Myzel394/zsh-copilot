@@ -77,6 +77,7 @@ Take a look at the [plugins directory](./plugins) for built-in plugins.
 | Provider | `openai` | OpenAI API (gpt-4o-mini) |
 | Provider | `anthropic` | Anthropic API (claude-3-haiku) |
 | Context | `system` | Adds user, shell, terminal, OS info |
+| Context | `git` | Adds git repo, branch, and uncommitted changes info |
 | Transform | `normalize` | Trims whitespace, removes quotes/code blocks |
 
 ### Options
