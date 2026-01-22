@@ -10,161 +10,89 @@ https://github.com/Myzel394/zsh-copilot/assets/50424412/ed2bc8ac-ce49-4012-ab73-
 
 ### Dependencies
 
-Please make sure you have the following dependencies installed:
-
 * [zsh-autosuggestions](https://github.com/zsh-users/zsh-autosuggestions)
 * [jq](https://github.com/jqlang/jq)
 * [curl](https://github.com/curl/curl)
 
-### Oh My Zsh
+### Recommended Installation
 
-1. Clone `zsh-copilot` into `$ZSH_CUSTOM/plugins` (by default ~/.config/oh-my-zsh/custom/plugins)
-
-```sh
-git clone https://git.myzel394.app/Myzel394/zsh-copilot ${ZSH_CUSTOM:-~/.config/oh-my-zsh/custom}/plugins/zsh-copilot
-```
-
-2. Add `zsh-copilot` to the plugins array in your `.zshrc` file:
-
-```bash
-plugins=( 
-    # your other plugins...
-    zsh-autosuggestions
-)
-```
-
-### Manual Installation
+It's highly recommended to git clone zsh-copilot into `~/.config/zsh-copilot`. zsh-copilot uses a plugin system and this makes it easy to load the built-in plugins.
 
 ```sh
 git clone https://git.myzel394.app/Myzel394/zsh-copilot ~/.config/zsh-copilot
-echo "source ~/.config/zsh-copilot/zsh-copilot.plugin.zsh" >> ~/.zshrc
 ```
+
+Add to your `.zshrc`:
+```sh
+source ~/.config/zsh-copilot/zsh-copilot.plugin.zsh
+```
+
+### Oh My Zsh
+
+```sh
+git clone https://git.myzel394.app/Myzel394/zsh-copilot ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-copilot
+```
+
+Add `zsh-copilot` to the plugins array in your `.zshrc`.
 
 ## Configuration
 
-### Setting up a Provider
+### Loading a Provider
 
-zsh-copilot uses a plugin system for AI providers. You need to load a provider before using the plugin.
+You need to source a provider plugin. Add one of these to your `.zshrc` after sourcing zsh-copilot:
 
-**Using OpenAI:**
+**OpenAI:**
 ```sh
-export OPENAI_API_KEY=<your-openai-api-key>
-zsh-copilot-load-provider openai
+export OPENAI_API_KEY=<your-api-key>
+source ~/.config/zsh-copilot/plugins/providers/openai.zsh
 ```
 
-**Using Anthropic:**
+**Anthropic:**
 ```sh
-export ANTHROPIC_API_KEY=<your-anthropic-api-key>
-zsh-copilot-load-provider anthropic
+export ANTHROPIC_API_KEY=<your-api-key>
+source ~/.config/zsh-copilot/plugins/providers/anthropic.zsh
 ```
 
-Add these lines to your `.zshrc` after sourcing zsh-copilot.
+### Loading Plugins
 
-You can also set the provider explicitly:
-```sh
-export ZSH_COPILOT_AI_PROVIDER="openai"  # or "anthropic"
-```
-
-### Other Options
-
-- `ZSH_COPILOT_KEY`: Key to press to get suggestions (default: ^z)
-- `ZSH_COPILOT_SEND_CONTEXT`: If `true`, zsh-copilot will send context information to the AI model (default: true)
-- `ZSH_COPILOT_DEBUG`: Enable debug logging (default: false)
-- `ZSH_COPILOT_PLUGINS_DIR`: Custom plugins directory (default: ~/.zsh-copilot/plugins)
-
-To see all available configurations and their current values, run:
+Source the plugins you want:
 
 ```sh
-zsh-copilot
+# Provider (required - pick one)
+source ~/.config/zsh-copilot/plugins/providers/openai.zsh
+
+# Context plugins (optional - adds info to prompts)
+source ~/.config/zsh-copilot/plugins/context/system.zsh
+
+# Transform plugins (optional - processes AI responses)
+source ~/.config/zsh-copilot/plugins/transform/normalize.zsh
 ```
 
-## Custom Providers
+### Built-in Plugins
 
-You can create your own AI provider by defining a function following this pattern:
+Take a look at the [plugins directory](./plugins) for built-in plugins.
 
-```sh
-# ~/.zsh-copilot/plugins/providers/ollama.zsh
-_zsh_copilot_provider_ollama() {
-    local input="$1"
-    local system_prompt="$2"
+| Type | Plugin | Description |
+|------|--------|-------------|
+| Provider | `openai` | OpenAI API (gpt-4o-mini) |
+| Provider | `anthropic` | Anthropic API (claude-3-haiku) |
+| Context | `system` | Adds user, shell, terminal, OS info |
+| Transform | `normalize` | Trims whitespace, removes quotes/code blocks |
 
-    # Your implementation here...
-    # Must write result to /tmp/zsh_copilot_suggestion
-    # Must write errors to /tmp/.zsh_copilot_error
-    # Return 0 on success, 1 on failure
+### Options
 
-    local response=$(curl http://localhost:11434/api/generate \
-        --silent \
-        -d "{\"model\": \"llama2\", \"prompt\": \"$system_prompt\n\nUser: $input\", \"stream\": false}" \
-        | jq -r '.response')
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ZSH_COPILOT_KEY` | `^z` | Key binding for suggestions |
+| `ZSH_COPILOT_SEND_CONTEXT` | `true` | Send context info to AI |
+| `ZSH_COPILOT_DEBUG` | `false` | Enable debug logging |
 
-    echo "$response" > /tmp/zsh_copilot_suggestion
-}
-```
-
-Then set `ZSH_COPILOT_AI_PROVIDER=ollama` and your custom provider will be used.
-
-Files in `~/.zsh-copilot/plugins/providers/` are automatically loaded.
-
-## Context Plugins
-
-Context plugins add information to the prompt sent to the AI. Multiple context plugins can be loaded and they chain together - each plugin receives the output of previous plugins.
-
-Built-in context plugins:
-- `system` - Adds user, shell, terminal, and OS information
-
-### Creating a Context Plugin
-
-```sh
-# ~/.zsh-copilot/plugins/context/git.zsh
-_zsh_copilot_context_git() {
-    local context="$1"
-
-    local git_info=""
-    if git rev-parse --is-inside-work-tree &>/dev/null; then
-        git_info="You are in a git repository on branch $(git branch --show-current)."
-    fi
-
-    if [[ -n "$context" ]]; then
-        echo "$context $git_info"
-    else
-        echo "$git_info"
-    fi
-}
-```
-
-Context plugins must:
-- Be named `_zsh_copilot_context_<name>`
-- Accept the current context as `$1`
-- Echo the augmented context (original + additions)
-
-Files in `~/.zsh-copilot/plugins/context/` are automatically loaded.
-
-## Transform Plugins
-
-Transform plugins process the AI response before displaying it. Multiple transform plugins chain together.
-
-Built-in transform plugins:
-- `normalize` - Trims whitespace, removes quotes, strips markdown code blocks
-
-### Creating a Transform Plugin
-
-```sh
-# ~/.zsh-copilot/plugins/transform/lowercase.zsh
-_zsh_copilot_transform_lowercase() {
-    local message="$1"
-    echo "${message:l}"
-}
-```
-
-Transform plugins must:
-- Be named `_zsh_copilot_transform_<name>`
-- Accept the message as `$1`
-- Echo the transformed message
-
-Files in `~/.zsh-copilot/plugins/transform/` are automatically loaded.
+Run `zsh-copilot` to see current configuration.
 
 ## Usage
 
-Type in your command or your message and press `CTRL + Z` to get your suggestion!
+Type your command or message and press `CTRL + Z` to get a suggestion.
 
+## Creating Custom Plugins
+
+See [PLUGINS.md](PLUGINS.md) for documentation on creating your own providers, context plugins, and transform plugins.
