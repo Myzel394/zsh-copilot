@@ -218,11 +218,9 @@ function _suggest_ai() {
 
     ##### And now, let's actually show the suggestion to the user!
 
-    # Reset user input
-    BUFFER=""
-    CURSOR=0
-
-    zle -U "$message"
+    # Set the new suggestion (setting BUFFER directly allows undoing the whole text at once)
+    BUFFER="$message"
+    CURSOR=${#message}
 }
 
 function zsh-copilot() {
