@@ -42,35 +42,69 @@ echo "source ~/.config/zsh-copilot/zsh-copilot.plugin.zsh" >> ~/.zshrc
 
 ## Configuration
 
-You need to have an API key for either OpenAI or Anthropic to use this plugin. Expose this via the appropriate environment variable:
+### Setting up a Provider
 
-For OpenAI (default):
+zsh-copilot uses a plugin system for AI providers. You need to load a provider before using the plugin.
+
+**Using OpenAI:**
 ```sh
 export OPENAI_API_KEY=<your-openai-api-key>
+zsh-copilot-load-provider openai
 ```
 
-For Anthropic:
+**Using Anthropic:**
 ```sh
 export ANTHROPIC_API_KEY=<your-anthropic-api-key>
+zsh-copilot-load-provider anthropic
 ```
 
-You can configure the AI provider using the `ZSH_COPILOT_AI_PROVIDER` variable:
+Add these lines to your `.zshrc` after sourcing zsh-copilot.
 
+You can also set the provider explicitly:
 ```sh
 export ZSH_COPILOT_AI_PROVIDER="openai"  # or "anthropic"
 ```
 
-Other configuration options:
+### Other Options
 
 - `ZSH_COPILOT_KEY`: Key to press to get suggestions (default: ^z)
 - `ZSH_COPILOT_SEND_CONTEXT`: If `true`, zsh-copilot will send context information to the AI model (default: true)
 - `ZSH_COPILOT_DEBUG`: Enable debug logging (default: false)
+- `ZSH_COPILOT_PLUGINS_DIR`: Custom plugins directory (default: ~/.zsh-copilot/plugins)
 
 To see all available configurations and their current values, run:
 
 ```sh
 zsh-copilot
 ```
+
+## Custom Providers
+
+You can create your own AI provider by defining a function following this pattern:
+
+```sh
+# ~/.zsh-copilot/plugins/providers/ollama.zsh
+_zsh_copilot_provider_ollama() {
+    local input="$1"
+    local system_prompt="$2"
+
+    # Your implementation here...
+    # Must write result to /tmp/zsh_copilot_suggestion
+    # Must write errors to /tmp/.zsh_copilot_error
+    # Return 0 on success, 1 on failure
+
+    local response=$(curl http://localhost:11434/api/generate \
+        --silent \
+        -d "{\"model\": \"llama2\", \"prompt\": \"$system_prompt\n\nUser: $input\", \"stream\": false}" \
+        | jq -r '.response')
+
+    echo "$response" > /tmp/zsh_copilot_suggestion
+}
+```
+
+Then set `ZSH_COPILOT_AI_PROVIDER=ollama` and your custom provider will be used.
+
+Files in `~/.zsh-copilot/plugins/providers/` are automatically loaded.
 
 ## Usage
 
