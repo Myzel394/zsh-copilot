@@ -106,6 +106,64 @@ Then set `ZSH_COPILOT_AI_PROVIDER=ollama` and your custom provider will be used.
 
 Files in `~/.zsh-copilot/plugins/providers/` are automatically loaded.
 
+## Context Plugins
+
+Context plugins add information to the prompt sent to the AI. Multiple context plugins can be loaded and they chain together - each plugin receives the output of previous plugins.
+
+Built-in context plugins:
+- `system` - Adds user, shell, terminal, and OS information
+
+### Creating a Context Plugin
+
+```sh
+# ~/.zsh-copilot/plugins/context/git.zsh
+_zsh_copilot_context_git() {
+    local context="$1"
+
+    local git_info=""
+    if git rev-parse --is-inside-work-tree &>/dev/null; then
+        git_info="You are in a git repository on branch $(git branch --show-current)."
+    fi
+
+    if [[ -n "$context" ]]; then
+        echo "$context $git_info"
+    else
+        echo "$git_info"
+    fi
+}
+```
+
+Context plugins must:
+- Be named `_zsh_copilot_context_<name>`
+- Accept the current context as `$1`
+- Echo the augmented context (original + additions)
+
+Files in `~/.zsh-copilot/plugins/context/` are automatically loaded.
+
+## Transform Plugins
+
+Transform plugins process the AI response before displaying it. Multiple transform plugins chain together.
+
+Built-in transform plugins:
+- `normalize` - Trims whitespace, removes quotes, strips markdown code blocks
+
+### Creating a Transform Plugin
+
+```sh
+# ~/.zsh-copilot/plugins/transform/lowercase.zsh
+_zsh_copilot_transform_lowercase() {
+    local message="$1"
+    echo "${message:l}"
+}
+```
+
+Transform plugins must:
+- Be named `_zsh_copilot_transform_<name>`
+- Accept the message as `$1`
+- Echo the transformed message
+
+Files in `~/.zsh-copilot/plugins/transform/` are automatically loaded.
+
 ## Usage
 
 Type in your command or your message and press `CTRL + Z` to get your suggestion!

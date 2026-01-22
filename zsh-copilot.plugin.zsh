@@ -93,17 +93,14 @@ function _show_loading_animation() {
 function _suggest_ai() {
     local context_info=""
     if [[ "$ZSH_COPILOT_SEND_CONTEXT" == 'true' ]]; then
-        local system
+        # Iterate over all context plugins and chain their output
+        for context_func in ${(k)functions[(I)_zsh_copilot_context_*]}; do
+            context_info=$($context_func "$context_info")
+        done
 
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            system="Your system is ${$(sw_vers | xargs | sed 's/ /./g')}."
-        else 
-            system="Your system is ${$(cat /etc/*-release | xargs | sed 's/ /,/g')}."
+        if [[ -n "$context_info" ]]; then
+            context_info="Context: $context_info"
         fi
-
-        context_info="Context: You are user $(whoami) with id $(id) in directory $(pwd). 
-            Your shell is $(echo $SHELL) and your terminal is $(echo $TERM) running on $(uname -a).
-            $system"
     fi
 
     ##### Get input
@@ -134,7 +131,10 @@ function _suggest_ai() {
 
     local message=$(cat /tmp/zsh_copilot_suggestion)
 
-    ##### Process response
+    ##### Process response - apply transform plugins
+    for transform_func in ${(k)functions[(I)_zsh_copilot_transform_*]}; do
+        message=$($transform_func "$message")
+    done
 
     if [[ "$ZSH_COPILOT_DEBUG" == 'true' ]]; then
         echo "{\"date\":\"$(date)\",\"log\":\"Suggestion extracted.\",\"input\":\"$input\",\"response\":\"$response\",\"message\":\"$message\",\"data\":\"$data\"}" >> /tmp/zsh-copilot.log
