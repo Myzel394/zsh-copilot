@@ -217,14 +217,38 @@ function _suggest_ai() {
 
     ##### Process response
 
+    # Defensive sanitisation: small / less-instruction-following models
+    # sometimes wrap the response in code fences, prepend whitespace, or sneak
+    # in newlines despite the system prompt forbidding them. Without this the
+    # garbage is pushed straight into the buffer and visually collides with
+    # the prompt and any leftover spinner artifacts.
+    message=${message#"${message%%[![:space:]]*}"}   # strip leading whitespace
+    message=${message%"${message##*[![:space:]]}"}   # strip trailing whitespace
+    message=${message//$'\r'/}                       # drop carriage returns
+    # Strip a leading ```lang fence if present, plus a trailing ``` fence
+    if [[ "$message" == '```'* ]]; then
+        message=${message#\`\`\`*$'\n'}
+        message=${message%$'\n'\`\`\`}
+        message=${message%\`\`\`}
+    fi
+
     local first_char=${message:0:1}
     local suggestion=${message:1:${#message}}
-    
+    # The protocol forbids newlines in the suggestion itself; collapse any
+    # the model emitted into single spaces so they can't trigger an
+    # accidental "Enter" when zle -U pushes them into the input stream.
+    suggestion=${suggestion//$'\n'/ }
+
     if [[ "$ZSH_COPILOT_DEBUG" == 'true' ]]; then
         echo "{\"date\":\"$(date)\",\"log\":\"Suggestion extracted.\",\"input\":\"$input\",\"response\":\"$response\",\"first_char\":\"$first_char\",\"suggestion\":\"$suggestion\",\"data\":\"$data\"}" >> /tmp/zsh-copilot.log
     fi
 
     ##### And now, let's actually show the suggestion to the user!
+
+    # Clear the spinner status line and force a clean redraw before we
+    # mutate the buffer, otherwise the spinner can overlap the new prompt.
+    _zsh_autosuggest_clear
+    zle reset-prompt
 
     if [[ "$first_char" == '=' ]]; then
         # Reset user input
