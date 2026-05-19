@@ -18,7 +18,7 @@ if [[ -z "$ZSH_COPILOT_AI_PROVIDER" ]]; then
     elif [[ -n "$ANTHROPIC_API_KEY" ]]; then
         typeset -g ZSH_COPILOT_AI_PROVIDER="anthropic"
     else
-        echo "No AI provider selected. Please set either OPENAI_API_KEY or ANTHROPIC_API_KEY."
+        echo "No AI provider selected. Please set ZSH_COPILOT_AI_PROVIDER=ollama, OPENAI_API_KEY, or ANTHROPIC_API_KEY."
         return 1
     fi
 fi
@@ -128,8 +128,63 @@ function _fetch_suggestions() {
         fi
 
         message=$(echo "$response" | tr -d '\n' | jq -r '.content[0].text')
+    elif [[ "$ZSH_COPILOT_AI_PROVIDER" == "ollama" ]]; then
+        # Ollama's API payload (chat endpoint).
+        # 'think: false' suppresses the verbose <think>...</think> block that
+        # reasoning-capable models (gemma4, qwen-r1, etc.) emit by default --
+        # we only want the final command, not the chain-of-thought. Ollama
+        # ignores the option for non-reasoning models.
+        data="{
+            \"model\": \"${ZSH_COPILOT_OLLAMA_MODEL:-llama3.2}\",
+            \"stream\": false,
+            \"think\": false,
+            \"messages\": [
+                {
+                    \"role\": \"system\",
+                    \"content\": \"$full_prompt\"
+                },
+                {
+                    \"role\": \"user\",
+                    \"content\": \"$input\"
+                }
+            ]
+        }"
+        response=$(curl "${ollama_api_url}/api/chat" \
+            --silent \
+            -H "Content-Type: application/json" \
+            -d "$data")
+        response_code=$?
+
+        if [[ "$ZSH_COPILOT_DEBUG" == 'true' ]]; then
+            echo "{\"date\":\"$(date)\",\"log\":\"Called Ollama API\",\"input\":\"$input\",\"response\":\"$response\",\"response_code\":\"$response_code\"}" >> /tmp/zsh-copilot.log
+        fi
+
+        if [[ $response_code -ne 0 ]] \
+            || [[ -n $(echo "$response" | jq -r '.error // empty' 2>/dev/null) ]]; then
+            if [[ "$ZSH_COPILOT_DEBUG" == 'true' ]]; then
+                echo "{\"date\":\"$(date)\",\"log\":\"Error fetching Ollama\",\"response\":$(printf '%s' "$response" | jq -Rs . 2>/dev/null || echo '\"<unprintable>\"')}" >> /tmp/zsh-copilot.log
+            fi
+
+            echo "Error fetching suggestions from the Ollama API. Please ensure Ollama is running and the model is pulled." > /tmp/.zsh_copilot_error
+            return 1
+        fi
+
+        message=$(printf '%s' "$response" | jq -r '.message.content' 2>/dev/null)
+        if [[ -z "$message" ]]; then
+            # Response was 200 but jq could not extract .message.content. The
+            # most common cause is a malformed JSON body from the model (e.g.
+            # unescaped control chars sneaking through). Capture the raw bytes
+            # so the user can inspect what happened.
+            local dump="${TMPDIR:-/tmp}/zsh-copilot-bad-response.json"
+            printf '%s' "$response" > "$dump"
+            if [[ "$ZSH_COPILOT_DEBUG" == 'true' ]]; then
+                echo "{\"date\":\"$(date)\",\"log\":\"Ollama returned unparseable body, dumped to $dump\"}" >> /tmp/zsh-copilot.log
+            fi
+            echo "Ollama returned a response zsh-copilot could not parse. Raw body saved to $dump." > /tmp/.zsh_copilot_error
+            return 1
+        fi
     else
-        echo "Invalid AI provider selected. Please choose 'openai' or 'anthropic'."
+        echo "Invalid AI provider selected. Please choose 'openai', 'anthropic', or 'ollama'."
         return 1
     fi
 
@@ -171,6 +226,7 @@ function _suggest_ai() {
     #### Prepare environment
     local openai_api_url=${OPENAI_API_URL:-"api.openai.com"}
     local anthropic_api_url=${ANTHROPIC_API_URL:-"api.anthropic.com"}
+    local ollama_api_url=${OLLAMA_API_URL:-"http://localhost:11434"}
 
     local context_info=""
     if [[ "$ZSH_COPILOT_SEND_CONTEXT" == 'true' ]]; then
@@ -243,7 +299,9 @@ function zsh-copilot() {
     echo "Configurations:"
     echo "    - ZSH_COPILOT_KEY: Key to press to get suggestions (default: ^z, value: $ZSH_COPILOT_KEY)."
     echo "    - ZSH_COPILOT_SEND_CONTEXT: If \`true\`, zsh-copilot will send context information (whoami, shell, pwd, etc.) to the AI model (default: true, value: $ZSH_COPILOT_SEND_CONTEXT)."
-    echo "    - ZSH_COPILOT_AI_PROVIDER: AI provider to use ('openai' or 'anthropic', value: $ZSH_COPILOT_AI_PROVIDER)."
+    echo "    - ZSH_COPILOT_AI_PROVIDER: AI provider to use ('openai', 'anthropic', or 'ollama', value: $ZSH_COPILOT_AI_PROVIDER)."
+    echo "    - ZSH_COPILOT_OLLAMA_MODEL: Ollama model to use when provider is 'ollama' (default: llama3.2, value: $ZSH_COPILOT_OLLAMA_MODEL)."
+    echo "    - OLLAMA_API_URL: Ollama base URL incl. scheme (default: http://localhost:11434, value: $OLLAMA_API_URL)."
     echo "    - ZSH_COPILOT_SYSTEM_PROMPT: System prompt to use for the AI model (uses a built-in prompt by default)."
 }
 
