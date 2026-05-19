@@ -41,8 +41,9 @@ read -r -d '' ZSH_COPILOT_SYSTEM_PROMPT <<- EOM
   Do NOT add any additional text, comments, or explanations to your response.
   Do not ask for more information, you won't receive it. 
 
-  Your response will be run in the user's shell. 
-  Make sure input is escaped correctly if needed so. 
+  Your response will be run in the user's shell.
+  The user's shell name and version is provided in the Context block (e.g. like 'Shell: zsh 5.9'). Generated commands MUST be valid syntax for THAT shell and respect its quoting, word-splitting, globbing and expansion rules. Do not emit bash-only or fish-only syntax when the user is in zsh, and vice versa. When in doubt, prefer POSIX-compatible syntax.
+  Make sure input is escaped correctly if needed so.
   Your input should be able to run without any modifications to it.
   DO NOT INTERACT WITH THE USER IN NATURAL LANGUAGE! If you do, you will be banned from the system. 
   Note that the double quote sign is escaped. Keep this in mind when you create quotes. 
@@ -174,16 +175,27 @@ function _suggest_ai() {
 
     local context_info=""
     if [[ "$ZSH_COPILOT_SEND_CONTEXT" == 'true' ]]; then
-        local system
+        local system shell_name shell_version
 
         if [[ "$OSTYPE" == "darwin"* ]]; then
             system="Your system is ${$(sw_vers | xargs | sed 's/ /./g')}."
-        else 
+        else
             system="Your system is ${$(cat /etc/*-release | xargs | sed 's/ /,/g')}."
         fi
 
-        context_info="Context: You are user $(whoami) with id $(id) in directory $(pwd). 
-            Your shell is $(echo $SHELL) and your terminal is $(echo $TERM) running on $(uname -a).
+        # Best-effort detection of the actual interactive shell + version,
+        # so the AI can target its syntax (zsh vs bash vs fish, etc.).
+        if [[ -n "$ZSH_VERSION" ]]; then
+            shell_name="zsh"; shell_version="$ZSH_VERSION"
+        elif [[ -n "$BASH_VERSION" ]]; then
+            shell_name="bash"; shell_version="$BASH_VERSION"
+        else
+            shell_name="${SHELL:t}"; shell_version="unknown"
+        fi
+
+        context_info="Context: You are user $(whoami) with id $(id) in directory $(pwd).
+            Shell: ${shell_name} ${shell_version} (\$SHELL=$SHELL). Generated commands must be valid syntax for this exact shell.
+            Your terminal is $(echo $TERM) running on $(uname -a).
             $system"
     fi
 
