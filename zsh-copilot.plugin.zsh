@@ -41,12 +41,12 @@ read -r -d '' ZSH_COPILOT_SYSTEM_PROMPT <<- EOM
   Do NOT add any additional text, comments, or explanations to your response.
   Do not ask for more information, you won't receive it. 
 
-  Your response will be run in the user's shell. 
-  Make sure input is escaped correctly if needed so. 
+  Your response will be run in the user's shell.
+  Make sure input is escaped correctly if needed so.
   Your input should be able to run without any modifications to it.
   DO NOT INTERACT WITH THE USER IN NATURAL LANGUAGE! If you do, you will be banned from the system. 
   Note that the double quote sign is escaped. Keep this in mind when you create quotes. 
-  Here are two examples: 
+  Here are two examples:
     * User input: 'list files in current directory'; Your response: '=ls' (ls is the builtin command for listing files)
     * User input: 'cd /tm'; Your response: '+p' (/tmp is the standard temp folder on linux and mac).
 EOM
@@ -62,20 +62,14 @@ function _fetch_suggestions() {
     local message
 
     if [[ "$ZSH_COPILOT_AI_PROVIDER" == "openai" ]]; then
-        # OpenAI's API payload
-        data="{
-            \"model\": \"gpt-4o-mini\",
-            \"messages\": [
-                {
-                    \"role\": \"system\",
-                    \"content\": \"$full_prompt\"
-                },
-                {
-                    \"role\": \"user\",
-                    \"content\": \"$input\"
-                }
+        # OpenAI's API payload (built via jq so arbitrary content is JSON-safe)
+        data=$(jq -n --arg sys "$full_prompt" --arg usr "$input" '{
+            model: "gpt-4o-mini",
+            messages: [
+                {role: "system", content: $sys},
+                {role: "user", content: $usr}
             ]
-        }"
+        }')
         response=$(curl "https://${openai_api_url}/v1/chat/completions" \
             --silent \
             -H "Content-Type: application/json" \
@@ -94,18 +88,15 @@ function _fetch_suggestions() {
 
         message=$(echo "$response" | tr -d '\n' | jq -r '.choices[0].message.content')
     elif [[ "$ZSH_COPILOT_AI_PROVIDER" == "anthropic" ]]; then
-        # Anthropic's API payload
-        data="{
-            \"model\": \"claude-3-5-sonnet-latest\",
-            \"max_tokens\": 1000,
-            \"system\": \"$full_prompt\",
-            \"messages\": [
-                {
-                    \"role\": \"user\",
-                    \"content\": \"$input\"
-                }
+        # Anthropic's API payload (built via jq so arbitrary content is JSON-safe)
+        data=$(jq -n --arg sys "$full_prompt" --arg usr "$input" '{
+            model: "claude-3-5-sonnet-latest",
+            max_tokens: 1000,
+            system: $sys,
+            messages: [
+                {role: "user", content: $usr}
             ]
-        }"
+        }')
         response=$(curl "https://${anthropic_api_url}/v1/messages" \
             --silent \
             -H "Content-Type: application/json" \
@@ -189,12 +180,11 @@ function _suggest_ai() {
 
     ##### Get input
     rm -f /tmp/zsh_copilot_suggestion
-    local input=$(echo "${BUFFER:0:$CURSOR}" | tr '\n' ';')
-    input=$(echo "$input" | sed 's/"/\\"/g')
+    local input="${BUFFER:0:$CURSOR}"
 
     _zsh_autosuggest_clear
 
-    local full_prompt=$(echo "$ZSH_COPILOT_SYSTEM_PROMPT $context_info" | tr -d '\n')
+    local full_prompt="$ZSH_COPILOT_SYSTEM_PROMPT $context_info"
 
     ##### Fetch message
     read < <(_fetch_suggestions & echo $!)
