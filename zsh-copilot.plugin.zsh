@@ -129,10 +129,15 @@ function _fetch_suggestions() {
 
         message=$(echo "$response" | tr -d '\n' | jq -r '.content[0].text')
     elif [[ "$ZSH_COPILOT_AI_PROVIDER" == "ollama" ]]; then
-        # Ollama's API payload (chat endpoint)
+        # Ollama's API payload (chat endpoint).
+        # 'think: false' suppresses the verbose <think>...</think> block that
+        # reasoning-capable models (gemma4, qwen-r1, etc.) emit by default --
+        # we only want the final command, not the chain-of-thought. Ollama
+        # ignores the option for non-reasoning models.
         data="{
             \"model\": \"${ZSH_COPILOT_OLLAMA_MODEL:-llama3.2}\",
             \"stream\": false,
+            \"think\": false,
             \"messages\": [
                 {
                     \"role\": \"system\",
@@ -154,16 +159,30 @@ function _fetch_suggestions() {
             echo "{\"date\":\"$(date)\",\"log\":\"Called Ollama API\",\"input\":\"$input\",\"response\":\"$response\",\"response_code\":\"$response_code\"}" >> /tmp/zsh-copilot.log
         fi
 
-        if [[ $response_code -ne 0 ]] || [[ -n $(echo "$response" | jq -r '.error // empty') ]]; then
+        if [[ $response_code -ne 0 ]] \
+            || [[ -n $(echo "$response" | jq -r '.error // empty' 2>/dev/null) ]]; then
             if [[ "$ZSH_COPILOT_DEBUG" == 'true' ]]; then
-                echo "{\"date\":\"$(date)\",\"log\":\"Error fetching Ollama\"}" >> /tmp/zsh-copilot.log
+                echo "{\"date\":\"$(date)\",\"log\":\"Error fetching Ollama\",\"response\":$(printf '%s' "$response" | jq -Rs . 2>/dev/null || echo '\"<unprintable>\"')}" >> /tmp/zsh-copilot.log
             fi
 
             echo "Error fetching suggestions from the Ollama API. Please ensure Ollama is running and the model is pulled." > /tmp/.zsh_copilot_error
             return 1
         fi
 
-        message=$(echo "$response" | tr -d '\n' | jq -r '.message.content')
+        message=$(printf '%s' "$response" | jq -r '.message.content' 2>/dev/null)
+        if [[ -z "$message" ]]; then
+            # Response was 200 but jq could not extract .message.content. The
+            # most common cause is a malformed JSON body from the model (e.g.
+            # unescaped control chars sneaking through). Capture the raw bytes
+            # so the user can inspect what happened.
+            local dump="${TMPDIR:-/tmp}/zsh-copilot-bad-response.json"
+            printf '%s' "$response" > "$dump"
+            if [[ "$ZSH_COPILOT_DEBUG" == 'true' ]]; then
+                echo "{\"date\":\"$(date)\",\"log\":\"Ollama returned unparseable body, dumped to $dump\"}" >> /tmp/zsh-copilot.log
+            fi
+            echo "Ollama returned a response zsh-copilot could not parse. Raw body saved to $dump." > /tmp/.zsh_copilot_error
+            return 1
+        fi
     else
         echo "Invalid AI provider selected. Please choose 'openai', 'anthropic', or 'ollama'."
         return 1
