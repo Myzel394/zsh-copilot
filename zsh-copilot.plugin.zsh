@@ -11,6 +11,38 @@
 (( ! ${+ZSH_COPILOT_DEBUG} )) &&
     typeset -g ZSH_COPILOT_DEBUG=false
 
+# Recent-history context: capture executed commands + their exit codes so the
+# AI can suggest fixes for commands that just failed.
+(( ! ${+ZSH_COPILOT_INCLUDE_HISTORY} )) &&
+    typeset -g ZSH_COPILOT_INCLUDE_HISTORY=true
+
+(( ! ${+ZSH_COPILOT_HISTORY_SIZE} )) &&
+    typeset -gi ZSH_COPILOT_HISTORY_SIZE=10
+
+(( ! ${+ZSH_COPILOT_HISTORY_FILE} )) &&
+    typeset -g ZSH_COPILOT_HISTORY_FILE="${TMPDIR:-/tmp}/zsh-copilot-history-${UID}"
+
+if [[ "$ZSH_COPILOT_INCLUDE_HISTORY" == 'true' ]]; then
+    _zsh_copilot_record_history() {
+        local last_exit=$?
+        local last_cmd
+        last_cmd=$(fc -ln -1 2>/dev/null | sed 's/^[[:space:]]*//')
+        [[ -z "$last_cmd" ]] && return
+        # Strip tabs/newlines from the command so each record stays on one line
+        last_cmd=${last_cmd//$'\t'/ }
+        last_cmd=${last_cmd//$'\n'/ }
+        printf '%s\t%d\n' "$last_cmd" "$last_exit" >> "$ZSH_COPILOT_HISTORY_FILE"
+        # Trim to the last N entries
+        if [[ -f "$ZSH_COPILOT_HISTORY_FILE" ]]; then
+            tail -n "$ZSH_COPILOT_HISTORY_SIZE" "$ZSH_COPILOT_HISTORY_FILE" \
+                > "${ZSH_COPILOT_HISTORY_FILE}.tmp" \
+                && mv "${ZSH_COPILOT_HISTORY_FILE}.tmp" "$ZSH_COPILOT_HISTORY_FILE"
+        fi
+    }
+    autoload -Uz add-zsh-hook
+    add-zsh-hook precmd _zsh_copilot_record_history
+fi
+
 # New option to select AI provider
 if [[ -z "$ZSH_COPILOT_AI_PROVIDER" ]]; then
     if [[ -n "$OPENAI_API_KEY" ]]; then
@@ -46,9 +78,11 @@ read -r -d '' ZSH_COPILOT_SYSTEM_PROMPT <<- EOM
   Your input should be able to run without any modifications to it.
   DO NOT INTERACT WITH THE USER IN NATURAL LANGUAGE! If you do, you will be banned from the system. 
   Note that the double quote sign is escaped. Keep this in mind when you create quotes. 
-  Here are two examples: 
+  Here are two examples:
     * User input: 'list files in current directory'; Your response: '=ls' (ls is the builtin command for listing files)
     * User input: 'cd /tm'; Your response: '+p' (/tmp is the standard temp folder on linux and mac).
+
+  You may also be given a Recent shell history block listing the user's last commands as 'command<TAB>exit_code' (one per line, most recent last; exit code 0 = success, non-zero = failure). Use this to detect typos or mistakes and suggest fixes. If the user input is empty AND the most recent command has a non-zero exit code, treat the request as 'fix the last command' and respond with '=<corrected command>'. Never reference history in natural language; still respond ONLY with '=...' or '+...'.
 EOM
 fi
 
@@ -182,9 +216,20 @@ function _suggest_ai() {
             system="Your system is ${$(cat /etc/*-release | xargs | sed 's/ /,/g')}."
         fi
 
-        context_info="Context: You are user $(whoami) with id $(id) in directory $(pwd). 
+        context_info="Context: You are user $(whoami) with id $(id) in directory $(pwd).
             Your shell is $(echo $SHELL) and your terminal is $(echo $TERM) running on $(uname -a).
             $system"
+    fi
+
+    local history_context=""
+    if [[ "$ZSH_COPILOT_INCLUDE_HISTORY" == 'true' ]] \
+        && [[ -s "$ZSH_COPILOT_HISTORY_FILE" ]]; then
+        # Escape backslashes and quotes, collapse each entry onto one logical
+        # line, then join with literal \n so the JSON payload stays one line.
+        local raw_history
+        raw_history=$(sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' "$ZSH_COPILOT_HISTORY_FILE" \
+            | awk '{printf "%s\\n", $0}')
+        history_context="Recent shell history (command<TAB>exit_code, most recent last):\\n${raw_history}"
     fi
 
     ##### Get input
@@ -194,7 +239,7 @@ function _suggest_ai() {
 
     _zsh_autosuggest_clear
 
-    local full_prompt=$(echo "$ZSH_COPILOT_SYSTEM_PROMPT $context_info" | tr -d '\n')
+    local full_prompt=$(echo "$ZSH_COPILOT_SYSTEM_PROMPT $context_info $history_context" | tr -d '\n')
 
     ##### Fetch message
     read < <(_fetch_suggestions & echo $!)
@@ -244,6 +289,9 @@ function zsh-copilot() {
     echo "    - ZSH_COPILOT_KEY: Key to press to get suggestions (default: ^z, value: $ZSH_COPILOT_KEY)."
     echo "    - ZSH_COPILOT_SEND_CONTEXT: If \`true\`, zsh-copilot will send context information (whoami, shell, pwd, etc.) to the AI model (default: true, value: $ZSH_COPILOT_SEND_CONTEXT)."
     echo "    - ZSH_COPILOT_AI_PROVIDER: AI provider to use ('openai' or 'anthropic', value: $ZSH_COPILOT_AI_PROVIDER)."
+    echo "    - ZSH_COPILOT_INCLUDE_HISTORY: If \`true\`, append the last N executed commands and their exit codes to the prompt so the AI can fix failed commands (default: true, value: $ZSH_COPILOT_INCLUDE_HISTORY)."
+    echo "    - ZSH_COPILOT_HISTORY_SIZE: How many recent commands to include in the history context (default: 10, value: $ZSH_COPILOT_HISTORY_SIZE)."
+    echo "    - ZSH_COPILOT_HISTORY_FILE: Path to the rolling history file (default: \$TMPDIR/zsh-copilot-history-\$UID, value: $ZSH_COPILOT_HISTORY_FILE)."
     echo "    - ZSH_COPILOT_SYSTEM_PROMPT: System prompt to use for the AI model (uses a built-in prompt by default)."
 }
 
